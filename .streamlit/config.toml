@@ -1,12 +1,7 @@
-[theme]
-base = "auto"  # auto, light, or dark
-primary = "#0033A0"
-backgroundColor = "#f8fafc"
-secondaryBackgroundColor = "#ffffff"
-textColor = "#1a1a2e"
-font = "sans serif"
-
 [server]
 maxUploadSize = 10
 enableXsrfProtection = true
 enableCORS = false
+
+# For Streamlit Cloud, we skip custom theme config
+# Theme is controlled via the UI (hamburger menu → Settings → Theme)
