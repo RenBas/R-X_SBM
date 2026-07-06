@@ -1,14 +1,1 @@
-Type,Division,School_Name,Latitude,Longitude,SBM_Status,Key_Indicator_Gap
-SDO,Bukidnon,Bukidnon SDO (Central),8.1536,125.0860,Always Manifested,None
-SDO,Cagayan de Oro,CDO City SDO (Central),8.4542,124.6319,Frequently Manifested,Indicator 17 (Mental Wellness)
-SDO,Lanao del Norte,Lanao del Norte SDO (Central),8.0528,123.9160,Rarely Manifested,Indicator 39 (Internet Facilities)
-SDO,Misamis Oriental,MisOr SDO (Central),8.5045,124.6319,Always Manifested,None
-SDO,Misamis Occidental,MisOcc SDO (Central),8.3392,123.6856,Frequently Manifested,Indicator 8 (TLE-TVL Industry Linkage)
-School,Bukidnon,Malaybalay Central Elementary School,8.1563,125.0247,Frequently Manifested,Indicator 5 (Remediation)
-School,Bukidnon,Valencia National High School,8.1021,125.0853,Rarely Manifested,Indicator 11 (Drop-out Rate)
-School,Cagayan de Oro,Bulua National High School,8.4312,124.5834,Always Manifested,None
-School,Cagayan de Oro,Don Carlos Village Integration School,8.4821,124.6512,Rarely Manifested,Indicator 17 (Mental Wellness)
-School,Lanao del Norte,Iligan City East Central School,8.2234,124.3654,Not Yet Manifested,Indicator 39 (Internet Facilities)
-School,Lanao del Norte,Tubod Central Elementary School,8.0856,123.8912,Rarely Manifested,Indicator 39 (Internet Facilities)
-School,Misamis Oriental,Gingoog City Central School,8.7534,125.1121,Frequently Manifested,Indicator 6 (Peace & Core Values)
-School,Misamis Occidental,Ozamiz City National High School,8.1543,123.8412,Always Manifested,None
+
