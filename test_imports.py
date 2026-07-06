@@ -8,6 +8,8 @@ try:
     print("✅ constants imported successfully.")
 except Exception as e:
     print(f"❌ constants import failed: {e}")
+    import traceback
+    traceback.print_exc()
 
 try:
     print("Step 3: Importing folium...")
@@ -15,6 +17,8 @@ try:
     print("✅ folium imported successfully.")
 except Exception as e:
     print(f"❌ folium import failed: {e}")
+    import traceback
+    traceback.print_exc()
 
 try:
     print("Step 4: Importing from map_helpers...")
