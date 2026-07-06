@@ -41,13 +41,11 @@ def create_shield_svg(color, size=32, label=""):
     Create a shield SVG as a base64-encoded string.
     Size controls the shield dimensions (default 32px).
     """
-    # Map color to hex
     if color.startswith('#'):
         hex_color = color
     else:
         hex_color = color
     
-    # Create simple shield polygon with rounded corners and gradient
     svg = f'''
     <svg width="{size}" height="{size}" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
         <defs>
@@ -71,7 +69,6 @@ def create_shield_svg(color, size=32, label=""):
         </text>
     </svg>
     '''
-    # Encode to base64
     svg_bytes = svg.encode('utf-8')
     b64 = base64.b64encode(svg_bytes).decode('utf-8')
     return f"data:image/svg+xml;base64,{b64}"
@@ -81,32 +78,30 @@ def create_shield_svg(color, size=32, label=""):
 def add_sdo_shield(map_obj, sdo):
     """
     Add an SDO marker using a custom SVG shield icon.
-    Size: 32px (can be adjusted via the size parameter).
+    DIAGNOSTIC VERSION: Forces glow on ALL SDOs
     """
     color = get_shield_color(sdo["lowest_dim_score"])
     
-    # Create short label (first 2-3 letters of the SDO name)
+    # Create short label
     label = sdo["name"].replace("SDO ", "").split(" ")[0][:3]
     
-    # ── URGENCY GLOW (Added BEFORE shield so it renders behind) ──
-    urgency = sdo.get("urgency_factor", 0)
+    # ── 🔴 DIAGNOSTIC: FORCE GLOW ON ALL SDOs ──
+    # This ignores the urgency_factor and always adds a glow
+    glow_color = "#dc2626"  # Red for all (diagnostic)
+    glow_radius = 30  # Fixed size for testing
     
-    # ✅ FIX: Lowered threshold from 0.5 to 0.1 to show glow more often
-    if urgency > 0.1:
-        glow_color = "#dc2626" if urgency > 0.7 else "#f97316"
-        glow_radius = 20 + urgency * 30  # Bigger: 35-50px
-        folium.Circle(
-            location=[sdo["lat"], sdo["lng"]],
-            radius=glow_radius,
-            color=glow_color,
-            fill=True,
-            fill_color=glow_color,
-            fill_opacity=0.2 + urgency * 0.4,  # More opaque: 0.24-0.60
-            weight=1.5,
-            popup=f"⚠️ Urgency Level: {urgency:.0%}"
-        ).add_to(map_obj)
+    folium.Circle(
+        location=[sdo["lat"], sdo["lng"]],
+        radius=glow_radius,
+        color=glow_color,
+        fill=True,
+        fill_color=glow_color,
+        fill_opacity=0.3,  # Semi-transparent
+        weight=2,
+        popup="🔴 DIAGNOSTIC GLOW - Forced on all SDOs"
+    ).add_to(map_obj)
     
-    # ── SHIELD (Added after glow so it sits on top) ──
+    # ── SHIELD ──
     icon_url = create_shield_svg(color, size=32, label=label)
     
     icon = folium.CustomIcon(
@@ -130,7 +125,6 @@ def add_school_dot(map_obj, school):
     color = get_school_dot_color(school["degree"]) if not is_pending else "#9ca3af"
     size = get_school_dot_size(school["enrollment"])
     
-    # Pending schools: lower opacity, dashed border
     fill_opacity = 0.9 if not is_pending else 0.4
     border_color = "#6b7280" if is_pending else "rgba(255,255,255,0.9)"
     border_weight = 2 if not is_pending else 3
@@ -161,6 +155,7 @@ def get_sdo_popup_html(sdo):
     <div style="font-size:13px;">
         <b>Overall Index:</b> {sdo["overall_index"]:.1f} / 3.0<br>
         <b>Lowest Dimension:</b> {sdo["lowest_dim_name"]} ({sdo["lowest_dim_score"]:.1f})<br>
+        <b>Urgency Factor:</b> {sdo.get("urgency_factor", 0):.2f}<br>
         <span style="color:#6b7280;font-size:11px;">Click to zoom in</span>
     </div>
     '''
