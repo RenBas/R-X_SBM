@@ -65,6 +65,10 @@ with st.sidebar:
     search_query = st.text_input("Type school name or ID", placeholder="e.g., Central")
     
     st.markdown("---")
+    st.markdown("### 🎨 Theme")
+    st.caption("Toggle Dark/Light mode via the **hamburger menu (☰)** → Settings → Theme")
+    
+    st.markdown("---")
     st.caption("SBM Digital Twin · Prototype v1.0")
     st.caption("DepEd Region X – Northern Mindanao")
 
@@ -144,18 +148,37 @@ except ImportError as e:
 except Exception as e:
     st.error(f"Map rendering failed: {e}")
 
-# ─── MAP LEGEND WITH FOOTNOTE ───
+# ─── MAP LEGEND WITH DARK MODE FOOTNOTE ───
 st.markdown("---")
 
-# ✅ New explanatory footnote about the glow
+# ✅ Updated footnote with dark mode support and clear explanations
 st.markdown("""
-<div style="background-color:#f8f9fa;padding:12px 16px;border-radius:8px;border-left:4px solid #0033a0;margin-bottom:12px;">
-    <b>💡 About the Glow:</b> The pulsing glow behind each SDO shield indicates urgency based on the division's <b>lowest SBM dimension score</b>.
-    <br>
-    <span style="color:#dc2626;">🔴 <b>Red glow</b></span> = Critical (score &lt; 1.0) – immediate attention needed.
-    <span style="color:#f97316;margin-left:16px;">🟠 <b>Orange glow</b></span> = Warning (score 1.0 – 1.9) – monitor closely.
-    <span style="color:#eab308;margin-left:16px;">🟡 <b>Yellow glow</b></span> = Monitor (score 2.0 – 2.4) – improvement needed.
-    <span style="color:#6b7280;margin-left:16px;">⚪ <b>No glow</b></span> = Stable (score ≥ 2.5) – performing well.
+<div style="background-color:var(--secondary-background-color);padding:14px 18px;border-radius:8px;border-left:4px solid var(--primary-color);margin-bottom:14px;color:var(--text-color);">
+    <b>💡 About the Pulsing Glow:</b> The animated glow behind each SDO shield indicates <b>urgency based on the division's lowest SBM dimension score</b>.
+    <br><br>
+    <div style="display:flex;flex-wrap:wrap;gap:12px 24px;margin-top:4px;">
+        <span style="color:#dc2626;font-weight:600;">🔴 Red glow</span>
+        <span>Critical – Score &lt; 1.0</span>
+        <span style="color:#6b7280;font-size:12px;">(Immediate attention needed)</span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:12px 24px;">
+        <span style="color:#f97316;font-weight:600;">🟠 Orange glow</span>
+        <span>Warning – Score 1.0 – 1.9</span>
+        <span style="color:#6b7280;font-size:12px;">(Monitor closely)</span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:12px 24px;">
+        <span style="color:#eab308;font-weight:600;">🟡 Yellow glow</span>
+        <span>Monitor – Score 2.0 – 2.4</span>
+        <span style="color:#6b7280;font-size:12px;">(Improvement needed)</span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:12px 24px;">
+        <span style="color:var(--text-color);font-weight:600;opacity:0.4;">⚪ No glow</span>
+        <span>Stable – Score ≥ 2.5</span>
+        <span style="color:#6b7280;font-size:12px;">(Performing well)</span>
+    </div>
+    <div style="margin-top:8px;font-size:12px;color:var(--text-color);opacity:0.6;">
+        The glow pulses faster and brighter for more urgent divisions.
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
