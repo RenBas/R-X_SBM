@@ -212,6 +212,9 @@ else:
     max_dim_idx = 0
     min_dim_idx = 0
 
+# ─── DETECT DARK MODE FOR SYNOPSIS ───
+is_dark_mode = (st.session_state.custom_theme == "dark")
+
 # ════════════════════════════════════════════════════════════════
 # SIDEBAR
 # ════════════════════════════════════════════════════════════════
@@ -385,10 +388,10 @@ with col3:
 with col4:
     st.metric("⬇️ Lowest Dimension (Urgent)", DIMENSION_NAMES[min_dim_idx] if overall_avg > 0 else "—", delta_color="inverse")
 
-# ─── SYNOPSIS SECTION (FOOLPROOF RENDERING) ───
+# ─── SYNOPSIS SECTION ───
 st.markdown("---")
 
-# Generate synopsis based on user role and data
+# Generate synopsis with dark mode awareness
 synopsis_html = generate_synopsis(
     user_role=role,
     user_name=user_name,
@@ -398,10 +401,11 @@ synopsis_html = generate_synopsis(
     dim_avgs=dim_avgs,
     overall_avg=overall_avg,
     max_dim_idx=max_dim_idx,
-    min_dim_idx=min_dim_idx
+    min_dim_idx=min_dim_idx,
+    is_dark_mode=is_dark_mode
 )
 
-# ─── RENDER SYNOPSIS USING st.components.v1.html (Most Reliable) ───
+# ─── RENDER SYNOPSIS USING st.components.v1.html ───
 from streamlit.components.v1 import html as st_html
 
 # Wrap the HTML in a div with proper styling to avoid any interference
