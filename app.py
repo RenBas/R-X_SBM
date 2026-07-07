@@ -11,11 +11,10 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ─── CUSTOM THEME (Independent of Streamlit's native theme) ───
+# ─── CUSTOM THEME ───
 if "custom_theme" not in st.session_state:
     st.session_state.custom_theme = "light"
 
-# Apply custom theme CSS based on session state
 if st.session_state.custom_theme == "dark":
     st.markdown("""
     <style>
@@ -53,7 +52,6 @@ if st.session_state.custom_theme == "dark":
         h1, h2, h3, h4, h5, h6 { color: #FAFAFA !important; }
         .custom-footnote { background-color: #1A1C23 !important; border-left: 4px solid #0033A0 !important; color: #FAFAFA !important; }
         .custom-footnote .text-muted { color: #9CA3AF !important; }
-        /* HIDE STREAMLIT FOOTER */
         footer { visibility: hidden !important; }
         .stApp > footer { display: none !important; }
     </style>
@@ -94,11 +92,11 @@ def load_cached_data():
 sdo_list, schools = load_cached_data()
 
 # ════════════════════════════════════════════════════════════════
-# SIDEBAR (No logo, clean and minimal)
+# SIDEBAR
 # ════════════════════════════════════════════════════════════════
 
 with st.sidebar:
-    # ── Appearance (Top of sidebar) ──
+    # ── Appearance ──
     st.markdown("### 🎨 Appearance")
     col_light, col_dark = st.columns(2)
     with col_light:
@@ -132,6 +130,43 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 🔍 Search School")
     search_query = st.text_input("Type school name or ID", placeholder="e.g., Central")
+    
+    # ── Glossary (Collapsible) ──
+    st.markdown("---")
+    with st.expander("📖 Glossary", expanded=False):
+        st.markdown("""
+        **SBM (School-Based Management)** – Decentralization of decision-making authority to schools for effective delivery of basic education.
+
+        **SDO (Schools Division Office)** – The local DepEd office that oversees schools within a specific division (e.g., SDO Cagayan de Oro City).
+
+        **SBM Dimensions** – Six key areas of school operations:
+        - **Curriculum & Teaching** – Learning standards and instructional practices.
+        - **Learning Environment** – Safe, inclusive, and enabling school conditions.
+        - **Leadership** – Empowerment and engagement of stakeholders.
+        - **Governance & Accountability** – Transparency, participation, and responsibility.
+        - **Human Resource & Team Development** – Capacity building and performance management.
+        - **Finance & Resource Management** – Efficient use and mobilization of resources.
+
+        **SBM Indicators** – 42 measurable practices and outcomes that assess SBM implementation across the six dimensions.
+
+        **Degree of Manifestation** – Scale (0–3) describing how consistently an indicator is observed:
+        - **0.0 – 0.9** = Not Yet Manifested
+        - **1.0 – 1.9** = Rarely Manifested
+        - **2.0 – 2.4** = Frequently Manifested
+        - **2.5 – 3.0** = Always Manifested
+
+        **Urgency Factor** – A computed value (0–1) indicating how urgent it is to address a division's lowest dimension score. Higher values (closer to 1) mean more urgent.
+
+        **Glow** – Animated pulsing behind SDO shields that reflects urgency level:
+        - 🔴 **Red** = Critical (score < 1.0)
+        - 🟠 **Orange** = Warning (1.0–1.9)
+        - 🟡 **Yellow** = Monitor (2.0–2.4)
+        - ⚪ **No glow** = Stable (≥ 2.5)
+
+        **Continuous Improvement** – The cyclical process of self-reflection, self-management, and self-improvement that schools undergo to enhance performance.
+
+        **Technical Assistance (TA)** – Support provided by SDOs, ROs, and CO to schools to help them improve their SBM practices and outcomes.
+        """)
     
     st.markdown("---")
     st.caption("SBM Digital Twin · Prototype v1.0")
