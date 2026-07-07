@@ -513,27 +513,9 @@ elif role == "division":
     
     with tab2:
         st.markdown("### 📊 School Performance Dashboard")
-        st.caption(f"Performance overview for all schools in {selected_sdo['name']}.")
+        st.caption(f"Detailed school-level performance for {selected_sdo['name']}.")
         
-        # 1. Summary cards
-        total_schools = len(schools_in_sdo)
-        complete = len(complete_schools)
-        pending = total_schools - complete
-        overall = overall_avg
-        strongest = DIMENSION_NAMES[max_dim_idx]
-        weakest = DIMENSION_NAMES[min_dim_idx]
-        
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("🏫 Total Schools", total_schools, delta=f"{pending} pending" if pending > 0 else None)
-        with col2:
-            st.metric("📊 Division SBM Index", f"{overall:.1f} / 3.0" if overall > 0 else "—")
-        with col3:
-            st.metric("⬆️ Strongest Dimension", strongest if overall > 0 else "—")
-        with col4:
-            st.metric("⬇️ Weakest Dimension", weakest if overall > 0 else "—", delta_color="inverse")
-        
-        # 2. Distribution per dimension
+        # ─── Distribution per dimension ───
         st.markdown("#### 📈 Distribution of Schools by Performance Level")
         dist_data = []
         for dim in DIMENSION_NAMES:
@@ -551,7 +533,7 @@ elif role == "division":
         dist_df = pd.DataFrame(dist_data)
         st.dataframe(dist_df, width='stretch', hide_index=True)
         
-        # Bar chart
+        # ─── Bar chart ───
         import plotly.graph_objects as go
         fig = go.Figure()
         for level, color in [("Strong (≥2.5)", "#22c55e"), ("Moderate (2.0-2.4)", "#eab308"), ("Weak (<2.0)", "#dc2626")]:
@@ -572,7 +554,7 @@ elif role == "division":
         )
         st.plotly_chart(fig, width='stretch')
         
-        # 3. Paginated, searchable table with one decimal
+        # ─── Paginated, searchable table with one decimal ───
         st.markdown("#### 📋 School List")
         
         # Build table data with rounding
@@ -676,7 +658,7 @@ elif role == "division":
         if len(page_df) == 0:
             st.info("No schools match your search criteria.")
         
-        # Jump to School placeholder
+        # ─── Jump to School ───
         st.markdown("#### 🔍 Jump to School")
         col_school, col_school_btn = st.columns([3, 1])
         with col_school:
