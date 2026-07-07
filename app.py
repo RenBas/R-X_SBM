@@ -98,6 +98,16 @@ def load_cached_data():
 
 sdo_list, schools = load_cached_data()
 
+# ─── COMPUTE REGIONAL AVERAGE (ALL SCHOOLS IN REGION) ───
+# This is used for the radar chart and division vs regional bar chart
+all_region_complete = [s for s in schools if s["data_status"] != "Pending"]
+if all_region_complete:
+    regional_dim_avgs = compute_dimension_averages(all_region_complete)
+    regional_overall_avg = round(sum(s["overall_index"] for s in all_region_complete) / len(all_region_complete), 1)
+else:
+    regional_dim_avgs = [0, 0, 0, 0, 0, 0]
+    regional_overall_avg = 0
+
 # ════════════════════════════════════════════════════════════════
 # AUTHENTICATION CHECK
 # ════════════════════════════════════════════════════════════════
@@ -222,13 +232,6 @@ else:
     max_dim_idx = 0
     min_dim_idx = 0
 
-# ─── COMPUTE REGIONAL AVERAGE ───
-all_complete = [s for s in schools if s["data_status"] != "Pending"]
-if all_complete:
-    regional_avg = round(sum(s["overall_index"] for s in all_complete) / len(all_complete), 1)
-else:
-    regional_avg = 0
-
 # ─── DETECT DARK MODE ───
 is_dark_mode = (st.session_state.custom_theme == "dark")
 
@@ -285,8 +288,6 @@ with st.sidebar:
                     overall_avg = 0
                     max_dim_idx = 0
                     min_dim_idx = 0
-                if all_complete:
-                    regional_avg = round(sum(s["overall_index"] for s in all_complete) / len(all_complete), 1)
         else:
             st.warning("No divisions accessible.")
             selected_sdo = None
@@ -542,9 +543,9 @@ elif role == "division":
         fig.add_trace(go.Bar(
             name="Region X",
             x=["SBM Index"],
-            y=[regional_avg],
+            y=[regional_overall_avg],
             marker_color="#9CA3AF",
-            text=[f"{regional_avg:.1f}"],
+            text=[f"{regional_overall_avg:.1f}"],
             textposition='auto',
             width=0.4
         ))
@@ -562,7 +563,7 @@ elif role == "division":
         )
         
         # Add annotation for difference
-        diff = overall_avg - regional_avg
+        diff = overall_avg - regional_overall_avg
         if diff > 0:
             diff_text = f"📈 Division is {diff:.1f} points above regional average"
             diff_color = "#22c55e"
@@ -891,10 +892,9 @@ with tab1:
         st.info("No complete SBM data available for this division.")
 
 with tab2:
-    all_complete = [s for s in filtered_schools if s["data_status"] != "Pending"]
-    reg_avgs = compute_dimension_averages(all_complete)
-    if any(dim_avgs):
-        fig = create_radar_chart(dim_avgs, reg_avgs)
+    # ✅ FIXED: Use regional_dim_avgs (computed from ALL schools in the region)
+    if any(dim_avgs) and any(regional_dim_avgs):
+        fig = create_radar_chart(dim_avgs, regional_dim_avgs)
         st.plotly_chart(fig, width='stretch')
     else:
         st.info("No dimension data available for this division.")
