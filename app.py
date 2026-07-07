@@ -82,6 +82,7 @@ from utils.auth import (
     authenticate, login_status, logout, get_accessible_schools,
     get_accessible_divisions_summary, get_user_division, is_school_head
 )
+from utils.download_helpers import generate_report_data, generate_template_csv
 
 # ════════════════════════════════════════════════════════════════
 # ✅ CACHE DATA LOADING
@@ -233,6 +234,39 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 🔍 Search School")
     search_query = st.text_input("Type school name or ID", placeholder="e.g., Central")
+    
+    # ── Data Management ──
+    st.markdown("---")
+    st.markdown("### 📊 Data Management")
+    
+    # Download Report Button
+    if selected_sdo_id is not None:
+        report_df = generate_report_data(selected_sdo["name"], schools_in_sdo, complete_schools)
+        if report_df is not None and not report_df.empty:
+            csv_report = report_df.to_csv(index=False)
+            st.download_button(
+                label="📥 Download Report (CSV)",
+                data=csv_report,
+                file_name=f"SBM_Report_{selected_sdo['name'].replace(' ', '_')}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+        else:
+            st.caption("No data to report.")
+    else:
+        st.caption("Select a division to download report.")
+    
+    # Download Template Button
+    template_df = generate_template_csv()
+    csv_template = template_df.to_csv(index=False)
+    st.download_button(
+        label="📋 Download Data Collection Template (CSV)",
+        data=csv_template,
+        file_name="SBM_Data_Collection_Template.csv",
+        mime="text/csv",
+        use_container_width=True
+    )
+    st.caption("Template based on DepEd Order No. 007, s. 2024")
     
     # ── Logout ──
     st.markdown("---")
