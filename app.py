@@ -428,11 +428,9 @@ if role == "regional":
         st_html(wrapped_html, height=900, scrolling=True)
     
     with tab2:
-        # Division Performance Matrix (regional only)
         st.markdown("### 📊 Division Performance Matrix")
         st.caption("Performance of all 14 divisions across the 6 SBM dimensions. Scores are rounded to 1 decimal place.")
         
-        # Build matrix data
         matrix_data = []
         for sdo in sdo_list:
             dim_scores = [round(x, 1) for x in sdo["dimension_scores"]]
@@ -448,8 +446,6 @@ if role == "regional":
             matrix_data.append(row)
         
         df = pd.DataFrame(matrix_data)
-        
-        # Add summary row (regional average)
         avg_row = {"Division": "📊 REGIONAL AVERAGE"}
         for dim in df.columns[1:]:
             avg_row[dim] = round(df[dim].mean(), 1)
@@ -504,7 +500,6 @@ if role == "regional":
                 st.rerun()
 
 elif role == "division":
-    # Division user: Executive Summary + School Performance Dashboard
     tab1, tab2 = st.tabs(["📋 Executive Summary", "📊 School Performance Dashboard"])
     
     with tab1:
@@ -538,7 +533,7 @@ elif role == "division":
         with col4:
             st.metric("⬇️ Weakest Dimension", weakest if overall > 0 else "—", delta_color="inverse")
         
-        # 2. Distribution per dimension (Strong/Moderate/Weak)
+        # 2. Distribution per dimension
         st.markdown("#### 📈 Distribution of Schools by Performance Level")
         dist_data = []
         for dim in DIMENSION_NAMES:
@@ -556,7 +551,7 @@ elif role == "division":
         dist_df = pd.DataFrame(dist_data)
         st.dataframe(dist_df, width='stretch', hide_index=True)
         
-        # Optional bar chart for better visualization (using plotly)
+        # Bar chart
         import plotly.graph_objects as go
         fig = go.Figure()
         for level, color in [("Strong (≥2.5)", "#22c55e"), ("Moderate (2.0-2.4)", "#eab308"), ("Weak (<2.0)", "#dc2626")]:
@@ -577,10 +572,10 @@ elif role == "division":
         )
         st.plotly_chart(fig, width='stretch')
         
-        # 3. Paginated, searchable table of schools
+        # 3. Paginated, searchable table with one decimal
         st.markdown("#### 📋 School List")
         
-        # Build table data
+        # Build table data with rounding
         school_rows = []
         for s in schools_in_sdo:
             if s["data_status"] == "Pending":
@@ -600,18 +595,17 @@ elif role == "division":
                 "HR & Team Development": dim_scores[4],
                 "Finance & Resource Mgmt.": dim_scores[5],
                 "Data Status": s["data_status"],
-                "School ID": s["id"]  # Hidden, used for navigation
+                "School ID": s["id"]
             })
         table_df = pd.DataFrame(school_rows)
         
         # Filter by search query (if any)
         if search_query:
-            # Use the global search_query from sidebar
             filtered_table = table_df[table_df["School"].str.contains(search_query, case=False, na=False)]
         else:
             filtered_table = table_df
         
-        # Drop the School ID column for display (keep for navigation)
+        # Drop School ID for display
         display_df = filtered_table.drop(columns=["School ID"])
         
         # Pagination
@@ -638,11 +632,22 @@ elif role == "division":
         
         start_idx = (st.session_state.school_page - 1) * page_size
         end_idx = min(start_idx + page_size, total_rows)
-        page_df = display_df.iloc[start_idx:end_idx]
+        page_df = display_df.iloc[start_idx:end_idx].copy()
         
-        # Color code the overall index and dimension scores
+        # Ensure numeric columns are float and rounded to 1 decimal
+        numeric_cols = ["Overall SBM Index", "Curriculum & Teaching", "Learning Environment", 
+                        "Leadership", "Governance & Accountability", "HR & Team Development", 
+                        "Finance & Resource Mgmt."]
+        for col in numeric_cols:
+            if col in page_df.columns:
+                # Replace "—" with NaN for proper numeric conversion
+                page_df[col] = pd.to_numeric(page_df[col], errors='coerce')
+                # Round to 1 decimal
+                page_df[col] = page_df[col].round(1)
+        
+        # Define color function
         def color_score(val):
-            if val == "—" or pd.isna(val):
+            if pd.isna(val):
                 return ''
             if val >= 2.5:
                 return 'background-color: #22c55e; color: white; font-weight: bold;'
@@ -651,16 +656,14 @@ elif role == "division":
             else:
                 return 'background-color: #dc2626; color: white; font-weight: bold;'
         
-        # Apply styling to numeric columns
-        numeric_cols = ["Overall SBM Index", "Curriculum & Teaching", "Learning Environment", "Leadership", "Governance & Accountability", "HR & Team Development", "Finance & Resource Mgmt."]
-        # Convert numeric columns to float where possible, leave "—" as string
-        for col in numeric_cols:
-            page_df[col] = pd.to_numeric(page_df[col], errors='coerce')
-        
+        # Apply styling
         styled_page = page_df.style.map(color_score, subset=numeric_cols)
+        # Format the numeric columns to one decimal
+        styled_page = styled_page.format("{:.1f}", subset=numeric_cols)
+        
         st.dataframe(styled_page, width='stretch', height=400)
         
-        # Legend for color coding
+        # Legend
         st.markdown("""
         <div style="display:flex;gap:16px;font-size:13px;margin:8px 0;">
             <span>🟢 <b>Strong</b> (≥ 2.5)</span>
@@ -670,11 +673,10 @@ elif role == "division":
         </div>
         """, unsafe_allow_html=True)
         
-        # If search results are empty, show a message
         if len(page_df) == 0:
             st.info("No schools match your search criteria.")
         
-        # ─── Drill-down: Jump to School ───
+        # Jump to School placeholder
         st.markdown("#### 🔍 Jump to School")
         col_school, col_school_btn = st.columns([3, 1])
         with col_school:
@@ -682,12 +684,6 @@ elif role == "division":
             selected_school_name = st.selectbox("Select a school to view its detailed dashboard:", school_names)
         with col_school_btn:
             if st.button("🚀 Go to School", use_container_width=True):
-                # Find the school and set session variable
-                for s in schools_in_sdo:
-                    if s["name"] == selected_school_name:
-                        st.session_state.go_to_school = s["id"]
-                        break
-                # We'll need to implement school-level navigation later; for now, just show a message
                 st.info(f"Navigating to {selected_school_name} (feature coming soon)")
 
 else:
