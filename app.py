@@ -163,11 +163,56 @@ filtered_data = get_accessible_schools(user, sdo_list, schools)
 filtered_sdos = filtered_data["filtered_sdos"]
 filtered_schools = filtered_data["filtered_schools"]
 
-# If school head, auto-select their school
-if is_school_head(user) and filtered_schools:
-    selected_sdo_id = filtered_schools[0]["sdo_id"] if filtered_schools else None
+# ════════════════════════════════════════════════════════════════
+# DETERMINE SELECTED SDO (BEFORE SIDEBAR)
+# ════════════════════════════════════════════════════════════════
+
+# We need to compute selected_sdo and selected_sdo_id before sidebar
+# because sidebar will use them.
+
+# Initialize variables
+selected_sdo = None
+selected_sdo_id = None
+
+if is_school_head(user):
+    # School head: auto-select their school's SDO
+    if filtered_schools:
+        school = filtered_schools[0]
+        selected_sdo = next((s for s in sdo_list if s["id"] == school["sdo_id"]), None)
+        selected_sdo_id = selected_sdo["id"] if selected_sdo else None
+    else:
+        st.warning("No school data available for your account.")
+        st.stop()
 else:
-    selected_sdo_id = None
+    # Division or Regional: we need to choose one division
+    if filtered_sdos:
+        # If only one division (division level), auto-select it
+        if len(filtered_sdos) == 1:
+            selected_sdo = filtered_sdos[0]
+            selected_sdo_id = selected_sdo["id"]
+        else:
+            # Regional: will select via sidebar dropdown
+            # We'll set a default (first in list) but sidebar will override
+            selected_sdo = filtered_sdos[0]
+            selected_sdo_id = selected_sdo["id"]
+    else:
+        st.warning("No divisions accessible.")
+        st.stop()
+
+# ─── COMPUTE SCHOOL DATA (for the selected SDO) ───
+# This must be done before sidebar because download buttons use it.
+schools_in_sdo = get_schools_by_sdo(filtered_schools, selected_sdo_id) if selected_sdo_id else []
+complete_schools = [s for s in schools_in_sdo if s["data_status"] != "Pending"]
+dim_avgs = compute_dimension_averages(schools_in_sdo)
+
+if complete_schools:
+    overall_avg = round(sum(s["overall_index"] for s in complete_schools) / len(complete_schools), 1)
+    max_dim_idx = dim_avgs.index(max(dim_avgs))
+    min_dim_idx = dim_avgs.index(min(dim_avgs))
+else:
+    overall_avg = 0
+    max_dim_idx = 0
+    min_dim_idx = 0
 
 # ════════════════════════════════════════════════════════════════
 # SIDEBAR
@@ -197,31 +242,40 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 🗺️ Navigation")
     
+    # Only show division selector if not school head
     if not is_school_head(user):
         if filtered_sdos:
             sdo_names = [s["name"] for s in filtered_sdos]
             if len(sdo_names) == 1:
-                selected_sdo = filtered_sdos[0]
-                selected_sdo_name = selected_sdo["name"]
-                selected_sdo_id = selected_sdo["id"]
-                st.caption(f"📋 {selected_sdo_name}")
+                # Division level: auto-selected, just display
+                st.caption(f"📋 {selected_sdo['name']}")
             else:
+                # Regional: dropdown to select division
                 selected_sdo_name = st.selectbox("Select Division", options=sdo_names, index=0)
+                # Update selected_sdo and selected_sdo_id based on selection
                 selected_sdo = next(s for s in filtered_sdos if s["name"] == selected_sdo_name)
                 selected_sdo_id = selected_sdo["id"]
+                # Recompute schools for the new selection
+                schools_in_sdo = get_schools_by_sdo(filtered_schools, selected_sdo_id)
+                complete_schools = [s for s in schools_in_sdo if s["data_status"] != "Pending"]
+                dim_avgs = compute_dimension_averages(schools_in_sdo)
+                if complete_schools:
+                    overall_avg = round(sum(s["overall_index"] for s in complete_schools) / len(complete_schools), 1)
+                    max_dim_idx = dim_avgs.index(max(dim_avgs))
+                    min_dim_idx = dim_avgs.index(min(dim_avgs))
+                else:
+                    overall_avg = 0
+                    max_dim_idx = 0
+                    min_dim_idx = 0
         else:
             st.warning("No divisions accessible.")
             selected_sdo = None
             selected_sdo_id = None
     else:
+        # School head: show school name
         if filtered_schools:
             school = filtered_schools[0]
-            selected_sdo = next((s for s in sdo_list if s["id"] == school["sdo_id"]), None)
-            selected_sdo_id = selected_sdo["id"] if selected_sdo else None
             st.caption(f"🏫 {school['name']}")
-        else:
-            selected_sdo = None
-            selected_sdo_id = None
     
     st.markdown("---")
     st.markdown("### 📐 Filter by Dimension")
@@ -240,7 +294,7 @@ with st.sidebar:
     st.markdown("### 📊 Data Management")
     
     # Download Report Button
-    if selected_sdo_id is not None:
+    if selected_sdo_id is not None and selected_sdo is not None:
         report_df = generate_report_data(selected_sdo["name"], schools_in_sdo, complete_schools)
         if report_df is not None and not report_df.empty:
             csv_report = report_df.to_csv(index=False)
@@ -317,29 +371,14 @@ if selected_sdo_id is None:
     st.warning("No data available for your role. Please contact your administrator.")
     st.stop()
 
-selected_sdo = next(s for s in sdo_list if s["id"] == selected_sdo_id)
-
 st.markdown(f"## 🎓 SBM Dashboard: {selected_sdo['name']}")
 st.caption(f"Capital: {selected_sdo['capital']} · {selected_sdo['id']} schools")
 
 # ─── KPI CARDS ───
-schools_in_sdo = get_schools_by_sdo(filtered_schools, selected_sdo_id)
-complete_schools = [s for s in schools_in_sdo if s["data_status"] != "Pending"]
-pending_count = len(schools_in_sdo) - len(complete_schools)
-dim_avgs = compute_dimension_averages(schools_in_sdo)
-
-if complete_schools:
-    overall_avg = round(sum(s["overall_index"] for s in complete_schools) / len(complete_schools), 1)
-    max_dim_idx = dim_avgs.index(max(dim_avgs))
-    min_dim_idx = dim_avgs.index(min(dim_avgs))
-else:
-    overall_avg = 0
-    max_dim_idx = 0
-    min_dim_idx = 0
-
+# (These use the already computed variables)
 col1, col2, col3, col4 = st.columns(4)
 with col1:
-    st.metric("🏫 Total Schools", len(schools_in_sdo), delta=f"{pending_count} pending" if pending_count > 0 else None)
+    st.metric("🏫 Total Schools", len(schools_in_sdo), delta=f"{len([s for s in schools_in_sdo if s['data_status']=='Pending'])} pending" if any(s['data_status']=='Pending' for s in schools_in_sdo) else None)
 with col2:
     st.metric("📊 Overall SBM Index", f"{overall_avg:.1f} / 3.0" if overall_avg > 0 else "—")
 with col3:
