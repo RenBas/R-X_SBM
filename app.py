@@ -396,6 +396,7 @@ if role == "regional":
     tab1, tab2 = st.tabs(["📋 Executive Summary", "📊 Division Performance Matrix"])
     
     with tab1:
+        # Executive Summary tab: synopsis, map, legend, and bottom tabs
         from streamlit.components.v1 import html as st_html
         wrapped_html = f"""
         <div style="width:100%;padding:0;margin:0;box-sizing:border-box;">
@@ -403,11 +404,175 @@ if role == "regional":
         </div>
         """
         st_html(wrapped_html, height=900, scrolling=True)
+        
+        # ─── MAP ───
+        st.markdown("---")
+        try:
+            import folium
+            from streamlit_folium import st_folium
+            
+            map_center = [selected_sdo["lat"], selected_sdo["lng"]]
+            m = folium.Map(location=map_center, zoom_start=8, tiles="OpenStreetMap")
+            
+            for sdo in filtered_sdos:
+                add_sdo_shield(m, sdo)
+            
+            for school in schools_in_sdo:
+                add_school_dot(m, school)
+            
+            st_folium(m, width=None, height=500, key="sbm_map")
+            
+        except ImportError as e:
+            st.error(f"Missing import: {e}. Please run: pip install folium streamlit-folium")
+        except Exception as e:
+            st.error(f"Map rendering failed: {e}")
+
+        # ─── MAP LEGEND ───
+        st.markdown("---")
+        st.markdown("""
+        <div class="custom-footnote" style="padding:14px 18px;border-radius:8px;margin-bottom:14px;">
+            <b>💡 About the Pulsing Glow:</b> The animated glow behind each SDO shield indicates <b>urgency based on the division's lowest SBM dimension score</b>.
+            <br><br>
+            <div style="display:flex;flex-wrap:wrap;gap:12px 24px;margin-top:4px;">
+                <span style="color:#dc2626;font-weight:600;">🔴 Red glow</span>
+                <span>Critical – Score &lt; 1.0</span>
+                <span class="text-muted" style="font-size:12px;">(Immediate attention needed)</span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:12px 24px;">
+                <span style="color:#f97316;font-weight:600;">🟠 Orange glow</span>
+                <span>Warning – Score 1.0 – 1.9</span>
+                <span class="text-muted" style="font-size:12px;">(Monitor closely)</span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:12px 24px;">
+                <span style="color:#eab308;font-weight:600;">🟡 Yellow glow</span>
+                <span>Monitor – Score 2.0 – 2.4</span>
+                <span class="text-muted" style="font-size:12px;">(Improvement needed)</span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:12px 24px;">
+                <span style="font-weight:600;opacity:0.4;">⚪ No glow</span>
+                <span>Stable – Score ≥ 2.5</span>
+                <span class="text-muted" style="font-size:12px;">(Performing well)</span>
+            </div>
+            <div style="margin-top:8px;font-size:12px;opacity:0.6;">
+                The glow pulses faster and brighter for more urgent divisions.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown("""
+        <div style="background-color:var(--secondary-background-color);padding:10px 16px;border-radius:8px;border-left:4px solid #22c55e;margin-bottom:14px;color:var(--text-color);">
+            <b>📏 School Dot Sizes:</b> The size of each school dot represents its <b>total enrollment (number of learners)</b>.
+            Larger dots indicate schools with more students, while smaller dots indicate schools with fewer students.
+            This helps you quickly see which schools have larger student populations.
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown("### 🗺️ Map Legend")
+        col1, col2, col3 = st.columns([1, 1, 1])
+        with col1:
+            st.markdown("""
+            **🏫 SDO Shields** (Color = Lowest Dimension Score)
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+                <span style="display:inline-block;width:20px;height:20px;background:#0d9488;clip-path:polygon(50% 0%,100% 20%,90% 80%,50% 100%,10% 80%,0% 20%);"></span>
+                <span>2.5 – 3.0 (High)</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+                <span style="display:inline-block;width:20px;height:20px;background:#eab308;clip-path:polygon(50% 0%,100% 20%,90% 80%,50% 100%,10% 80%,0% 20%);"></span>
+                <span>2.0 – 2.4 (Medium-High)</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+                <span style="display:inline-block;width:20px;height:20px;background:#f97316;clip-path:polygon(50% 0%,100% 20%,90% 80%,50% 100%,10% 80%,0% 20%);"></span>
+                <span>1.0 – 1.9 (Medium-Low)</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+                <span style="display:inline-block;width:20px;height:20px;background:#dc2626;clip-path:polygon(50% 0%,100% 20%,90% 80%,50% 100%,10% 80%,0% 20%);"></span>
+                <span>0.0 – 0.9 (Low/Critical)</span>
+            </div>
+            """, unsafe_allow_html=True)
+        with col2:
+            st.markdown("""
+            **📍 School Dots** (Color = Overall SBM Level)
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+                <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#22c55e;"></span>
+                <span>Always Manifested (2.5 – 3.0)</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+                <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#eab308;"></span>
+                <span>Frequently Manifested (2.0 – 2.4)</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+                <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#f97316;"></span>
+                <span>Rarely Manifested (1.0 – 1.9)</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+                <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#9ca3af;"></span>
+                <span>Not Yet Manifested (0.0 – 0.9)</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+                <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:repeating-linear-gradient(45deg, #9ca3af, #9ca3af 3px, #d1d5db 3px, #d1d5db 6px);border:2px solid #6b7280;"></span>
+                <span>Data Pending</span>
+            </div>
+            """, unsafe_allow_html=True)
+        with col3:
+            st.markdown("""
+            **🔄 Urgency Glow** (Behind SDO Shields)
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+                <span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:radial-gradient(circle, #dc2626 30%, transparent 70%);"></span>
+                <span>Critical (score < 1.0)</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+                <span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:radial-gradient(circle, #f97316 30%, transparent 70%);"></span>
+                <span>Warning (score 1.0 – 1.9)</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0;font-size:12px;color:#6b7280;">
+                <span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:radial-gradient(circle, #eab308 30%, transparent 70%);"></span>
+                <span>Monitor (score 2.0 – 2.4)</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0;font-size:12px;color:#6b7280;">
+                <span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:transparent;border:1px solid #d1d5db;"></span>
+                <span>Stable (score ≥ 2.5)</span>
+            </div>
+            """, unsafe_allow_html=True)
+        st.caption("💡 Click on any SDO shield to zoom in and view its schools. Hover over markers for more details.")
+        
+        # ─── BOTTOM TABS (Indicators, Radar Chart, Historical Trend) ───
+        st.markdown("---")
+        btab1, btab2, btab3 = st.tabs(["📋 Indicators", "📊 Radar Chart", "📈 Historical Trend"])
+        with btab1:
+            df = create_indicators_table(schools_in_sdo)
+            if not df.empty:
+                st.dataframe(
+                    df[["#", "Indicator", "Dimension", "Score", "Status"]],
+                    column_config={"Score": st.column_config.NumberColumn(format="%.1f")},
+                    hide_index=True,
+                    width='stretch'
+                )
+                st.caption(f"* Average across {len(complete_schools)} complete schools in this division")
+            else:
+                st.info("No complete SBM data available for this division.")
+        with btab2:
+            if any(dim_avgs) and any(regional_dim_avgs):
+                fig = create_radar_chart(dim_avgs, regional_dim_avgs)
+                st.plotly_chart(fig, width='stretch')
+            else:
+                st.info("No dimension data available for this division.")
+        with btab3:
+            if complete_schools:
+                random.seed(42)
+                current_avg = overall_avg
+                years = ["2023-2024", "2022-2023", "2021-2022"]
+                values = [
+                    current_avg,
+                    round(max(0, min(3, current_avg - 0.2 + (random.random() - 0.5) * 0.4)), 1),
+                    round(max(0, min(3, current_avg - 0.4 + (random.random() - 0.5) * 0.4)), 1)
+                ]
+                fig = create_trend_chart(years, values)
+                st.plotly_chart(fig, width='stretch')
+            else:
+                st.info("No historical data available for this division.")
     
     with tab2:
         st.markdown("### 📊 Division Performance Matrix")
         st.caption("Performance of all 14 divisions across the 6 SBM dimensions. Scores are rounded to 1 decimal place.")
-        
+        # ... [rest of the matrix code as before, with no map or radar] ...
         matrix_data = []
         for sdo in sdo_list:
             dim_scores = [round(x, 1) for x in sdo["dimension_scores"]]
@@ -480,6 +645,7 @@ elif role == "division":
     tab1, tab2 = st.tabs(["📋 Executive Summary", "📊 School Performance Dashboard"])
     
     with tab1:
+        # Executive Summary tab: synopsis, map, legend, and bottom tabs
         from streamlit.components.v1 import html as st_html
         wrapped_html = f"""
         <div style="width:100%;padding:0;margin:0;box-sizing:border-box;">
@@ -487,8 +653,173 @@ elif role == "division":
         </div>
         """
         st_html(wrapped_html, height=900, scrolling=True)
+        
+        # ─── MAP ───
+        st.markdown("---")
+        try:
+            import folium
+            from streamlit_folium import st_folium
+            
+            map_center = [selected_sdo["lat"], selected_sdo["lng"]]
+            m = folium.Map(location=map_center, zoom_start=8, tiles="OpenStreetMap")
+            
+            for sdo in filtered_sdos:
+                add_sdo_shield(m, sdo)
+            
+            for school in schools_in_sdo:
+                add_school_dot(m, school)
+            
+            st_folium(m, width=None, height=500, key="sbm_map")
+            
+        except ImportError as e:
+            st.error(f"Missing import: {e}. Please run: pip install folium streamlit-folium")
+        except Exception as e:
+            st.error(f"Map rendering failed: {e}")
+
+        # ─── MAP LEGEND ───
+        st.markdown("---")
+        st.markdown("""
+        <div class="custom-footnote" style="padding:14px 18px;border-radius:8px;margin-bottom:14px;">
+            <b>💡 About the Pulsing Glow:</b> The animated glow behind each SDO shield indicates <b>urgency based on the division's lowest SBM dimension score</b>.
+            <br><br>
+            <div style="display:flex;flex-wrap:wrap;gap:12px 24px;margin-top:4px;">
+                <span style="color:#dc2626;font-weight:600;">🔴 Red glow</span>
+                <span>Critical – Score &lt; 1.0</span>
+                <span class="text-muted" style="font-size:12px;">(Immediate attention needed)</span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:12px 24px;">
+                <span style="color:#f97316;font-weight:600;">🟠 Orange glow</span>
+                <span>Warning – Score 1.0 – 1.9</span>
+                <span class="text-muted" style="font-size:12px;">(Monitor closely)</span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:12px 24px;">
+                <span style="color:#eab308;font-weight:600;">🟡 Yellow glow</span>
+                <span>Monitor – Score 2.0 – 2.4</span>
+                <span class="text-muted" style="font-size:12px;">(Improvement needed)</span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:12px 24px;">
+                <span style="font-weight:600;opacity:0.4;">⚪ No glow</span>
+                <span>Stable – Score ≥ 2.5</span>
+                <span class="text-muted" style="font-size:12px;">(Performing well)</span>
+            </div>
+            <div style="margin-top:8px;font-size:12px;opacity:0.6;">
+                The glow pulses faster and brighter for more urgent divisions.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown("""
+        <div style="background-color:var(--secondary-background-color);padding:10px 16px;border-radius:8px;border-left:4px solid #22c55e;margin-bottom:14px;color:var(--text-color);">
+            <b>📏 School Dot Sizes:</b> The size of each school dot represents its <b>total enrollment (number of learners)</b>.
+            Larger dots indicate schools with more students, while smaller dots indicate schools with fewer students.
+            This helps you quickly see which schools have larger student populations.
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown("### 🗺️ Map Legend")
+        col1, col2, col3 = st.columns([1, 1, 1])
+        with col1:
+            st.markdown("""
+            **🏫 SDO Shields** (Color = Lowest Dimension Score)
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+                <span style="display:inline-block;width:20px;height:20px;background:#0d9488;clip-path:polygon(50% 0%,100% 20%,90% 80%,50% 100%,10% 80%,0% 20%);"></span>
+                <span>2.5 – 3.0 (High)</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+                <span style="display:inline-block;width:20px;height:20px;background:#eab308;clip-path:polygon(50% 0%,100% 20%,90% 80%,50% 100%,10% 80%,0% 20%);"></span>
+                <span>2.0 – 2.4 (Medium-High)</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+                <span style="display:inline-block;width:20px;height:20px;background:#f97316;clip-path:polygon(50% 0%,100% 20%,90% 80%,50% 100%,10% 80%,0% 20%);"></span>
+                <span>1.0 – 1.9 (Medium-Low)</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+                <span style="display:inline-block;width:20px;height:20px;background:#dc2626;clip-path:polygon(50% 0%,100% 20%,90% 80%,50% 100%,10% 80%,0% 20%);"></span>
+                <span>0.0 – 0.9 (Low/Critical)</span>
+            </div>
+            """, unsafe_allow_html=True)
+        with col2:
+            st.markdown("""
+            **📍 School Dots** (Color = Overall SBM Level)
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+                <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#22c55e;"></span>
+                <span>Always Manifested (2.5 – 3.0)</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+                <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#eab308;"></span>
+                <span>Frequently Manifested (2.0 – 2.4)</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+                <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#f97316;"></span>
+                <span>Rarely Manifested (1.0 – 1.9)</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+                <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#9ca3af;"></span>
+                <span>Not Yet Manifested (0.0 – 0.9)</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+                <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:repeating-linear-gradient(45deg, #9ca3af, #9ca3af 3px, #d1d5db 3px, #d1d5db 6px);border:2px solid #6b7280;"></span>
+                <span>Data Pending</span>
+            </div>
+            """, unsafe_allow_html=True)
+        with col3:
+            st.markdown("""
+            **🔄 Urgency Glow** (Behind SDO Shields)
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+                <span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:radial-gradient(circle, #dc2626 30%, transparent 70%);"></span>
+                <span>Critical (score < 1.0)</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+                <span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:radial-gradient(circle, #f97316 30%, transparent 70%);"></span>
+                <span>Warning (score 1.0 – 1.9)</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0;font-size:12px;color:#6b7280;">
+                <span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:radial-gradient(circle, #eab308 30%, transparent 70%);"></span>
+                <span>Monitor (score 2.0 – 2.4)</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0;font-size:12px;color:#6b7280;">
+                <span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:transparent;border:1px solid #d1d5db;"></span>
+                <span>Stable (score ≥ 2.5)</span>
+            </div>
+            """, unsafe_allow_html=True)
+        st.caption("💡 Click on any SDO shield to zoom in and view its schools. Hover over markers for more details.")
+        
+        # ─── BOTTOM TABS (Indicators, Radar Chart, Historical Trend) ───
+        st.markdown("---")
+        btab1, btab2, btab3 = st.tabs(["📋 Indicators", "📊 Radar Chart", "📈 Historical Trend"])
+        with btab1:
+            df = create_indicators_table(schools_in_sdo)
+            if not df.empty:
+                st.dataframe(
+                    df[["#", "Indicator", "Dimension", "Score", "Status"]],
+                    column_config={"Score": st.column_config.NumberColumn(format="%.1f")},
+                    hide_index=True,
+                    width='stretch'
+                )
+                st.caption(f"* Average across {len(complete_schools)} complete schools in this division")
+            else:
+                st.info("No complete SBM data available for this division.")
+        with btab2:
+            if any(dim_avgs) and any(regional_dim_avgs):
+                fig = create_radar_chart(dim_avgs, regional_dim_avgs)
+                st.plotly_chart(fig, width='stretch')
+            else:
+                st.info("No dimension data available for this division.")
+        with btab3:
+            if complete_schools:
+                random.seed(42)
+                current_avg = overall_avg
+                years = ["2023-2024", "2022-2023", "2021-2022"]
+                values = [
+                    current_avg,
+                    round(max(0, min(3, current_avg - 0.2 + (random.random() - 0.5) * 0.4)), 1),
+                    round(max(0, min(3, current_avg - 0.4 + (random.random() - 0.5) * 0.4)), 1)
+                ]
+                fig = create_trend_chart(years, values)
+                st.plotly_chart(fig, width='stretch')
+            else:
+                st.info("No historical data available for this division.")
     
     with tab2:
+        # School Performance Dashboard – no map, no radar, no bottom tabs
         st.markdown("### 📊 School Performance Dashboard")
         st.caption(f"Detailed school-level performance for {selected_sdo['name']}.")
         
@@ -565,6 +896,7 @@ elif role == "division":
         dist_df = pd.DataFrame(dist_data)
         st.dataframe(dist_df, width='stretch', hide_index=True)
         
+        # ─── Bar chart ───
         fig2 = go.Figure()
         for level, color in [("Strong (≥2.5)", "#22c55e"), ("Moderate (2.0-2.4)", "#eab308"), ("Weak (<2.0)", "#dc2626")]:
             fig2.add_trace(go.Bar(
@@ -686,7 +1018,7 @@ elif role == "division":
                 st.info(f"Navigating to {selected_school_name} (feature coming soon)")
 
 else:
-    # School head: just display synopsis (no tabs)
+    # School head: no tabs – just synopsis, map, legend, bottom tabs
     from streamlit.components.v1 import html as st_html
     wrapped_html = f"""
     <div style="width:100%;padding:0;margin:0;box-sizing:border-box;">
@@ -695,185 +1027,169 @@ else:
     """
     st_html(wrapped_html, height=900, scrolling=True)
 
-# ════════════════════════════════════════════════════════════════
-# 🗺️ MAP – NOW ONLY RENDERED ONCE, BELOW THE TABS
-# ════════════════════════════════════════════════════════════════
+    # ─── MAP ───
+    st.markdown("---")
+    try:
+        import folium
+        from streamlit_folium import st_folium
+        
+        map_center = [selected_sdo["lat"], selected_sdo["lng"]]
+        m = folium.Map(location=map_center, zoom_start=8, tiles="OpenStreetMap")
+        
+        for sdo in filtered_sdos:
+            add_sdo_shield(m, sdo)
+        
+        for school in schools_in_sdo:
+            add_school_dot(m, school)
+        
+        st_folium(m, width=None, height=500, key="sbm_map")
+        
+    except ImportError as e:
+        st.error(f"Missing import: {e}. Please run: pip install folium streamlit-folium")
+    except Exception as e:
+        st.error(f"Map rendering failed: {e}")
 
-st.markdown("---")
-
-try:
-    import folium
-    from streamlit_folium import st_folium
-    
-    map_center = [selected_sdo["lat"], selected_sdo["lng"]]
-    m = folium.Map(location=map_center, zoom_start=8, tiles="OpenStreetMap")
-    
-    for sdo in filtered_sdos:
-        add_sdo_shield(m, sdo)
-    
-    for school in schools_in_sdo:
-        add_school_dot(m, school)
-    
-    st_folium(m, width=None, height=500, key="sbm_map")
-    
-except ImportError as e:
-    st.error(f"Missing import: {e}. Please run: pip install folium streamlit-folium")
-except Exception as e:
-    st.error(f"Map rendering failed: {e}")
-
-# ─── MAP LEGEND WITH FOOTNOTE ───
-st.markdown("---")
-
-st.markdown("""
-<div class="custom-footnote" style="padding:14px 18px;border-radius:8px;margin-bottom:14px;">
-    <b>💡 About the Pulsing Glow:</b> The animated glow behind each SDO shield indicates <b>urgency based on the division's lowest SBM dimension score</b>.
-    <br><br>
-    <div style="display:flex;flex-wrap:wrap;gap:12px 24px;margin-top:4px;">
-        <span style="color:#dc2626;font-weight:600;">🔴 Red glow</span>
-        <span>Critical – Score &lt; 1.0</span>
-        <span class="text-muted" style="font-size:12px;">(Immediate attention needed)</span>
-    </div>
-    <div style="display:flex;flex-wrap:wrap;gap:12px 24px;">
-        <span style="color:#f97316;font-weight:600;">🟠 Orange glow</span>
-        <span>Warning – Score 1.0 – 1.9</span>
-        <span class="text-muted" style="font-size:12px;">(Monitor closely)</span>
-    </div>
-    <div style="display:flex;flex-wrap:wrap;gap:12px 24px;">
-        <span style="color:#eab308;font-weight:600;">🟡 Yellow glow</span>
-        <span>Monitor – Score 2.0 – 2.4</span>
-        <span class="text-muted" style="font-size:12px;">(Improvement needed)</span>
-    </div>
-    <div style="display:flex;flex-wrap:wrap;gap:12px 24px;">
-        <span style="font-weight:600;opacity:0.4;">⚪ No glow</span>
-        <span>Stable – Score ≥ 2.5</span>
-        <span class="text-muted" style="font-size:12px;">(Performing well)</span>
-    </div>
-    <div style="margin-top:8px;font-size:12px;opacity:0.6;">
-        The glow pulses faster and brighter for more urgent divisions.
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-# ─── ADD EXPLANATION FOR SCHOOL DOT SIZES ───
-st.markdown("""
-<div style="background-color:var(--secondary-background-color);padding:10px 16px;border-radius:8px;border-left:4px solid #22c55e;margin-bottom:14px;color:var(--text-color);">
-    <b>📏 School Dot Sizes:</b> The size of each school dot represents its <b>total enrollment (number of learners)</b>.
-    Larger dots indicate schools with more students, while smaller dots indicate schools with fewer students.
-    This helps you quickly see which schools have larger student populations.
-</div>
-""", unsafe_allow_html=True)
-
-st.markdown("### 🗺️ Map Legend")
-
-col1, col2, col3 = st.columns([1, 1, 1])
-
-with col1:
+    # ─── MAP LEGEND ───
+    st.markdown("---")
     st.markdown("""
-    **🏫 SDO Shields** (Color = Lowest Dimension Score)
-    <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
-        <span style="display:inline-block;width:20px;height:20px;background:#0d9488;clip-path:polygon(50% 0%,100% 20%,90% 80%,50% 100%,10% 80%,0% 20%);"></span>
-        <span>2.5 – 3.0 (High)</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
-        <span style="display:inline-block;width:20px;height:20px;background:#eab308;clip-path:polygon(50% 0%,100% 20%,90% 80%,50% 100%,10% 80%,0% 20%);"></span>
-        <span>2.0 – 2.4 (Medium-High)</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
-        <span style="display:inline-block;width:20px;height:20px;background:#f97316;clip-path:polygon(50% 0%,100% 20%,90% 80%,50% 100%,10% 80%,0% 20%);"></span>
-        <span>1.0 – 1.9 (Medium-Low)</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
-        <span style="display:inline-block;width:20px;height:20px;background:#dc2626;clip-path:polygon(50% 0%,100% 20%,90% 80%,50% 100%,10% 80%,0% 20%);"></span>
-        <span>0.0 – 0.9 (Low/Critical)</span>
+    <div class="custom-footnote" style="padding:14px 18px;border-radius:8px;margin-bottom:14px;">
+        <b>💡 About the Pulsing Glow:</b> The animated glow behind each SDO shield indicates <b>urgency based on the division's lowest SBM dimension score</b>.
+        <br><br>
+        <div style="display:flex;flex-wrap:wrap;gap:12px 24px;margin-top:4px;">
+            <span style="color:#dc2626;font-weight:600;">🔴 Red glow</span>
+            <span>Critical – Score &lt; 1.0</span>
+            <span class="text-muted" style="font-size:12px;">(Immediate attention needed)</span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:12px 24px;">
+            <span style="color:#f97316;font-weight:600;">🟠 Orange glow</span>
+            <span>Warning – Score 1.0 – 1.9</span>
+            <span class="text-muted" style="font-size:12px;">(Monitor closely)</span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:12px 24px;">
+            <span style="color:#eab308;font-weight:600;">🟡 Yellow glow</span>
+            <span>Monitor – Score 2.0 – 2.4</span>
+            <span class="text-muted" style="font-size:12px;">(Improvement needed)</span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:12px 24px;">
+            <span style="font-weight:600;opacity:0.4;">⚪ No glow</span>
+            <span>Stable – Score ≥ 2.5</span>
+            <span class="text-muted" style="font-size:12px;">(Performing well)</span>
+        </div>
+        <div style="margin-top:8px;font-size:12px;opacity:0.6;">
+            The glow pulses faster and brighter for more urgent divisions.
+        </div>
     </div>
     """, unsafe_allow_html=True)
-
-with col2:
     st.markdown("""
-    **📍 School Dots** (Color = Overall SBM Level)
-    <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
-        <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#22c55e;"></span>
-        <span>Always Manifested (2.5 – 3.0)</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
-        <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#eab308;"></span>
-        <span>Frequently Manifested (2.0 – 2.4)</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
-        <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#f97316;"></span>
-        <span>Rarely Manifested (1.0 – 1.9)</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
-        <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#9ca3af;"></span>
-        <span>Not Yet Manifested (0.0 – 0.9)</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
-        <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:repeating-linear-gradient(45deg, #9ca3af, #9ca3af 3px, #d1d5db 3px, #d1d5db 6px);border:2px solid #6b7280;"></span>
-        <span>Data Pending</span>
+    <div style="background-color:var(--secondary-background-color);padding:10px 16px;border-radius:8px;border-left:4px solid #22c55e;margin-bottom:14px;color:var(--text-color);">
+        <b>📏 School Dot Sizes:</b> The size of each school dot represents its <b>total enrollment (number of learners)</b>.
+        Larger dots indicate schools with more students, while smaller dots indicate schools with fewer students.
+        This helps you quickly see which schools have larger student populations.
     </div>
     """, unsafe_allow_html=True)
+    st.markdown("### 🗺️ Map Legend")
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col1:
+        st.markdown("""
+        **🏫 SDO Shields** (Color = Lowest Dimension Score)
+        <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+            <span style="display:inline-block;width:20px;height:20px;background:#0d9488;clip-path:polygon(50% 0%,100% 20%,90% 80%,50% 100%,10% 80%,0% 20%);"></span>
+            <span>2.5 – 3.0 (High)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+            <span style="display:inline-block;width:20px;height:20px;background:#eab308;clip-path:polygon(50% 0%,100% 20%,90% 80%,50% 100%,10% 80%,0% 20%);"></span>
+            <span>2.0 – 2.4 (Medium-High)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+            <span style="display:inline-block;width:20px;height:20px;background:#f97316;clip-path:polygon(50% 0%,100% 20%,90% 80%,50% 100%,10% 80%,0% 20%);"></span>
+            <span>1.0 – 1.9 (Medium-Low)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+            <span style="display:inline-block;width:20px;height:20px;background:#dc2626;clip-path:polygon(50% 0%,100% 20%,90% 80%,50% 100%,10% 80%,0% 20%);"></span>
+            <span>0.0 – 0.9 (Low/Critical)</span>
+        </div>
+        """, unsafe_allow_html=True)
+    with col2:
+        st.markdown("""
+        **📍 School Dots** (Color = Overall SBM Level)
+        <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+            <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#22c55e;"></span>
+            <span>Always Manifested (2.5 – 3.0)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+            <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#eab308;"></span>
+            <span>Frequently Manifested (2.0 – 2.4)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+            <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#f97316;"></span>
+            <span>Rarely Manifested (1.0 – 1.9)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+            <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#9ca3af;"></span>
+            <span>Not Yet Manifested (0.0 – 0.9)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+            <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:repeating-linear-gradient(45deg, #9ca3af, #9ca3af 3px, #d1d5db 3px, #d1d5db 6px);border:2px solid #6b7280;"></span>
+            <span>Data Pending</span>
+        </div>
+        """, unsafe_allow_html=True)
+    with col3:
+        st.markdown("""
+        **🔄 Urgency Glow** (Behind SDO Shields)
+        <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+            <span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:radial-gradient(circle, #dc2626 30%, transparent 70%);"></span>
+            <span>Critical (score < 1.0)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+            <span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:radial-gradient(circle, #f97316 30%, transparent 70%);"></span>
+            <span>Warning (score 1.0 – 1.9)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:4px 0;font-size:12px;color:#6b7280;">
+            <span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:radial-gradient(circle, #eab308 30%, transparent 70%);"></span>
+            <span>Monitor (score 2.0 – 2.4)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:4px 0;font-size:12px;color:#6b7280;">
+            <span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:transparent;border:1px solid #d1d5db;"></span>
+            <span>Stable (score ≥ 2.5)</span>
+        </div>
+        """, unsafe_allow_html=True)
+    st.caption("💡 Click on any SDO shield to zoom in and view its schools. Hover over markers for more details.")
 
-with col3:
-    st.markdown("""
-    **🔄 Urgency Glow** (Behind SDO Shields)
-    <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
-        <span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:radial-gradient(circle, #dc2626 30%, transparent 70%);"></span>
-        <span>Critical (score < 1.0)</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
-        <span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:radial-gradient(circle, #f97316 30%, transparent 70%);"></span>
-        <span>Warning (score 1.0 – 1.9)</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;margin:4px 0;font-size:12px;color:#6b7280;">
-        <span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:radial-gradient(circle, #eab308 30%, transparent 70%);"></span>
-        <span>Monitor (score 2.0 – 2.4)</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;margin:4px 0;font-size:12px;color:#6b7280;">
-        <span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:transparent;border:1px solid #d1d5db;"></span>
-        <span>Stable (score ≥ 2.5)</span>
-    </div>
-    """, unsafe_allow_html=True)
-
-st.caption("💡 Click on any SDO shield to zoom in and view its schools. Hover over markers for more details.")
-
-# ─── BOTTOM TABS ───
-st.markdown("---")
-tab1, tab2, tab3 = st.tabs(["📋 Indicators", "📊 Radar Chart", "📈 Historical Trend"])
-
-with tab1:
-    df = create_indicators_table(schools_in_sdo)
-    if not df.empty:
-        st.dataframe(
-            df[["#", "Indicator", "Dimension", "Score", "Status"]],
-            column_config={"Score": st.column_config.NumberColumn(format="%.1f")},
-            hide_index=True,
-            width='stretch'
-        )
-        st.caption(f"* Average across {len(complete_schools)} complete schools in this division")
-    else:
-        st.info("No complete SBM data available for this division.")
-
-with tab2:
-    if any(dim_avgs) and any(regional_dim_avgs):
-        fig = create_radar_chart(dim_avgs, regional_dim_avgs)
-        st.plotly_chart(fig, width='stretch')
-    else:
-        st.info("No dimension data available for this division.")
-
-with tab3:
-    if complete_schools:
-        random.seed(42)
-        current_avg = overall_avg
-        years = ["2023-2024", "2022-2023", "2021-2022"]
-        values = [
-            current_avg,
-            round(max(0, min(3, current_avg - 0.2 + (random.random() - 0.5) * 0.4)), 1),
-            round(max(0, min(3, current_avg - 0.4 + (random.random() - 0.5) * 0.4)), 1)
-        ]
-        fig = create_trend_chart(years, values)
-        st.plotly_chart(fig, width='stretch')
-    else:
-        st.info("No historical data available for this division.")
+    # ─── BOTTOM TABS ───
+    st.markdown("---")
+    btab1, btab2, btab3 = st.tabs(["📋 Indicators", "📊 Radar Chart", "📈 Historical Trend"])
+    with btab1:
+        df = create_indicators_table(schools_in_sdo)
+        if not df.empty:
+            st.dataframe(
+                df[["#", "Indicator", "Dimension", "Score", "Status"]],
+                column_config={"Score": st.column_config.NumberColumn(format="%.1f")},
+                hide_index=True,
+                width='stretch'
+            )
+            st.caption(f"* Average across {len(complete_schools)} complete schools in this division")
+        else:
+            st.info("No complete SBM data available for this division.")
+    with btab2:
+        if any(dim_avgs) and any(regional_dim_avgs):
+            fig = create_radar_chart(dim_avgs, regional_dim_avgs)
+            st.plotly_chart(fig, width='stretch')
+        else:
+            st.info("No dimension data available for this division.")
+    with btab3:
+        if complete_schools:
+            random.seed(42)
+            current_avg = overall_avg
+            years = ["2023-2024", "2022-2023", "2021-2022"]
+            values = [
+                current_avg,
+                round(max(0, min(3, current_avg - 0.2 + (random.random() - 0.5) * 0.4)), 1),
+                round(max(0, min(3, current_avg - 0.4 + (random.random() - 0.5) * 0.4)), 1)
+            ]
+            fig = create_trend_chart(years, values)
+            st.plotly_chart(fig, width='stretch')
+        else:
+            st.info("No historical data available for this division.")
 
 # ─── SEARCH ───
 if search_query:
