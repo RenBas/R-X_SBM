@@ -465,10 +465,9 @@ if role == "regional":
             else:
                 return 'background-color: #dc2626; color: white; font-weight: bold;'
         
-        # Apply styling
-        styled_df = df.style.map(color_cell, subset=df.columns[1:])
-        # Convert to HTML with float format to ensure one decimal
-        html_table = styled_df.to_html(index=False, escape=False, float_format="%.1f")
+        # Apply styling and force number format to 1 decimal
+        styled_df = df.style.map(color_cell, subset=df.columns[1:]).format("{:.1f}", subset=df.columns[1:])
+        html_table = styled_df.to_html(index=False, escape=False)
         
         # Display with markdown
         st.markdown(html_table, unsafe_allow_html=True)
