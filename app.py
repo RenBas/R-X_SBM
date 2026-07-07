@@ -78,6 +78,10 @@ from utils.constants import DIMENSION_NAMES
 from utils.data_loader import load_sdo_data, load_all_schools, get_schools_by_sdo, compute_dimension_averages
 from utils.map_helpers import add_sdo_shield, add_school_dot
 from utils.chart_helpers import create_radar_chart, create_trend_chart, create_indicators_table
+from utils.auth import (
+    authenticate, login_status, logout, get_accessible_schools,
+    get_accessible_divisions_summary, get_user_division, is_school_head
+)
 
 # ════════════════════════════════════════════════════════════════
 # ✅ CACHE DATA LOADING
@@ -92,10 +96,82 @@ def load_cached_data():
 sdo_list, schools = load_cached_data()
 
 # ════════════════════════════════════════════════════════════════
+# AUTHENTICATION CHECK
+# ════════════════════════════════════════════════════════════════
+
+auth_status = login_status()
+
+# ─── LOGIN SCREEN ───
+if not auth_status["logged_in"]:
+    st.markdown("""
+    <div style="text-align:center;padding:60px 20px;">
+        <h1>🎓 SBM Digital Twin Dashboard</h1>
+        <p style="color:#6b7280;font-size:18px;">DepEd Region X – Northern Mindanao</p>
+        <div style="margin-top:40px;max-width:400px;margin-left:auto;margin-right:auto;">
+            <div style="background:#f8f9fa;padding:30px;border-radius:10px;border:1px solid #e5e7eb;">
+                <h3 style="margin-top:0;">🔐 Sign In</h3>
+                <p style="font-size:13px;color:#6b7280;">
+                    <b>Demo Credentials:</b><br>
+                    Regional: regional / regional123<br>
+                    Division: sdo_bukidnon / sdo123<br>
+                    School: principal_cdo / school123
+                </p>
+    """, unsafe_allow_html=True)
+    
+    with st.form("login_form"):
+        username = st.text_input("Username", placeholder="Enter your username")
+        password = st.text_input("Password", type="password", placeholder="Enter your password")
+        submitted = st.form_submit_button("🔑 Sign In", use_container_width=True)
+        
+        if submitted:
+            if username and password:
+                user = authenticate(username, password)
+                if user:
+                    st.session_state.user = user
+                    st.rerun()
+                else:
+                    st.error("❌ Invalid username or password.")
+            else:
+                st.warning("Please enter both username and password.")
+    
+    st.markdown("""
+            </div>
+        </div>
+        <p style="color:#9ca3af;font-size:12px;margin-top:20px;">
+            For demonstration purposes only. Real authentication will be implemented post-pilot.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.stop()
+
+# ─── USER INFORMATION ───
+user = st.session_state.user
+role = user.get("role", "school")
+user_name = user.get("name", "User")
+
+# Filter data based on user role
+filtered_data = get_accessible_schools(user, sdo_list, schools)
+filtered_sdos = filtered_data["filtered_sdos"]
+filtered_schools = filtered_data["filtered_schools"]
+
+# If school head, auto-select their school
+if is_school_head(user) and filtered_schools:
+    # School heads only see their school – auto-select
+    selected_sdo_id = filtered_schools[0]["sdo_id"] if filtered_schools else None
+else:
+    selected_sdo_id = None
+
+# ════════════════════════════════════════════════════════════════
 # SIDEBAR
 # ════════════════════════════════════════════════════════════════
 
 with st.sidebar:
+    # ── User Info ──
+    st.markdown(f"### 👤 {user_name}")
+    st.caption(get_accessible_divisions_summary(user))
+    st.markdown("---")
+    
     # ── Appearance ──
     st.markdown("### 🎨 Appearance")
     col_light, col_dark = st.columns(2)
@@ -110,14 +186,39 @@ with st.sidebar:
             st.session_state.custom_theme = "dark"
             st.rerun()
     
-    # ── Navigation ──
+    # ── Navigation (Adapted to role) ──
     st.markdown("---")
     st.markdown("### 🗺️ Navigation")
     
-    sdo_names = [s["name"] for s in sdo_list]
-    selected_sdo_name = st.selectbox("Select Division", options=sdo_names, index=0)
-    selected_sdo = next(s for s in sdo_list if s["name"] == selected_sdo_name)
-    selected_sdo_id = selected_sdo["id"]
+    # Division selector – only show if not school head
+    if not is_school_head(user):
+        if filtered_sdos:
+            sdo_names = [s["name"] for s in filtered_sdos]
+            if len(sdo_names) == 1:
+                # Only one division available (division-level user)
+                selected_sdo = filtered_sdos[0]
+                selected_sdo_name = selected_sdo["name"]
+                selected_sdo_id = selected_sdo["id"]
+                st.caption(f"📋 {selected_sdo_name}")
+            else:
+                # Multiple divisions (regional user)
+                selected_sdo_name = st.selectbox("Select Division", options=sdo_names, index=0)
+                selected_sdo = next(s for s in filtered_sdos if s["name"] == selected_sdo_name)
+                selected_sdo_id = selected_sdo["id"]
+        else:
+            st.warning("No divisions accessible.")
+            selected_sdo = None
+            selected_sdo_id = None
+    else:
+        # School head: show their school name instead of division selector
+        if filtered_schools:
+            school = filtered_schools[0]
+            selected_sdo = next((s for s in sdo_list if s["id"] == school["sdo_id"]), None)
+            selected_sdo_id = selected_sdo["id"] if selected_sdo else None
+            st.caption(f"🏫 {school['name']}")
+        else:
+            selected_sdo = None
+            selected_sdo_id = None
     
     st.markdown("---")
     st.markdown("### 📐 Filter by Dimension")
@@ -131,41 +232,41 @@ with st.sidebar:
     st.markdown("### 🔍 Search School")
     search_query = st.text_input("Type school name or ID", placeholder="e.g., Central")
     
-    # ── Glossary (Collapsible) ──
+    # ── Logout ──
     st.markdown("---")
+    if st.button("🚪 Logout", use_container_width=True):
+        logout()
+    
+    # ── Glossary ──
     with st.expander("📖 Glossary", expanded=False):
         st.markdown("""
-        **SBM (School-Based Management)** – Decentralization of decision-making authority to schools for effective delivery of basic education.
+        **SBM (School-Based Management)** – Decentralization of decision-making authority to schools.
 
-        **SDO (Schools Division Office)** – The local DepEd office that oversees schools within a specific division (e.g., SDO Cagayan de Oro City).
+        **SDO (Schools Division Office)** – Local DepEd office overseeing schools in a division.
 
         **SBM Dimensions** – Six key areas of school operations:
-        - **Curriculum & Teaching** – Learning standards and instructional practices.
-        - **Learning Environment** – Safe, inclusive, and enabling school conditions.
-        - **Leadership** – Empowerment and engagement of stakeholders.
-        - **Governance & Accountability** – Transparency, participation, and responsibility.
-        - **Human Resource & Team Development** – Capacity building and performance management.
-        - **Finance & Resource Management** – Efficient use and mobilization of resources.
+        - Curriculum & Teaching
+        - Learning Environment
+        - Leadership
+        - Governance & Accountability
+        - Human Resource & Team Development
+        - Finance & Resource Management
 
-        **SBM Indicators** – 42 measurable practices and outcomes that assess SBM implementation across the six dimensions.
+        **SBM Indicators** – 42 measurable practices and outcomes.
 
-        **Degree of Manifestation** – Scale (0–3) describing how consistently an indicator is observed:
-        - **0.0 – 0.9** = Not Yet Manifested
-        - **1.0 – 1.9** = Rarely Manifested
-        - **2.0 – 2.4** = Frequently Manifested
-        - **2.5 – 3.0** = Always Manifested
+        **Degree of Manifestation** – Scale (0–3):
+        - 0.0–0.9 = Not Yet Manifested
+        - 1.0–1.9 = Rarely Manifested
+        - 2.0–2.4 = Frequently Manifested
+        - 2.5–3.0 = Always Manifested
 
-        **Urgency Factor** – A computed value (0–1) indicating how urgent it is to address a division's lowest dimension score. Higher values (closer to 1) mean more urgent.
+        **Urgency Factor** – 0–1 value indicating how urgent it is to address a division's lowest dimension.
 
-        **Glow** – Animated pulsing behind SDO shields that reflects urgency level:
-        - 🔴 **Red** = Critical (score < 1.0)
-        - 🟠 **Orange** = Warning (1.0–1.9)
-        - 🟡 **Yellow** = Monitor (2.0–2.4)
-        - ⚪ **No glow** = Stable (≥ 2.5)
-
-        **Continuous Improvement** – The cyclical process of self-reflection, self-management, and self-improvement that schools undergo to enhance performance.
-
-        **Technical Assistance (TA)** – Support provided by SDOs, ROs, and CO to schools to help them improve their SBM practices and outcomes.
+        **Glow** – Animated pulsing behind SDO shields:
+        - 🔴 Red = Critical (< 1.0)
+        - 🟠 Orange = Warning (1.0–1.9)
+        - 🟡 Yellow = Monitor (2.0–2.4)
+        - ⚪ No glow = Stable (≥ 2.5)
         """)
     
     st.markdown("---")
@@ -176,11 +277,17 @@ with st.sidebar:
 # MAIN CONTENT
 # ════════════════════════════════════════════════════════════════
 
+if selected_sdo_id is None:
+    st.warning("No data available for your role. Please contact your administrator.")
+    st.stop()
+
+selected_sdo = next(s for s in sdo_list if s["id"] == selected_sdo_id)
+
 st.markdown(f"## 🎓 SBM Dashboard: {selected_sdo['name']}")
 st.caption(f"Capital: {selected_sdo['capital']} · {selected_sdo['id']} schools")
 
 # ─── KPI CARDS ───
-schools_in_sdo = get_schools_by_sdo(schools, selected_sdo_id)
+schools_in_sdo = get_schools_by_sdo(filtered_schools, selected_sdo_id)
 complete_schools = [s for s in schools_in_sdo if s["data_status"] != "Pending"]
 pending_count = len(schools_in_sdo) - len(complete_schools)
 dim_avgs = compute_dimension_averages(schools_in_sdo)
@@ -214,9 +321,11 @@ try:
     map_center = [selected_sdo["lat"], selected_sdo["lng"]]
     m = folium.Map(location=map_center, zoom_start=8, tiles="OpenStreetMap")
     
-    for sdo in sdo_list:
+    # Show only accessible SDOs
+    for sdo in filtered_sdos:
         add_sdo_shield(m, sdo)
     
+    # Show only accessible schools
     for school in schools_in_sdo:
         add_school_dot(m, school)
     
@@ -227,7 +336,7 @@ except ImportError as e:
 except Exception as e:
     st.error(f"Map rendering failed: {e}")
 
-# ─── MAP LEGEND WITH FOOTNOTE ───
+# ─── MAP LEGEND ───
 st.markdown("---")
 
 st.markdown("""
@@ -351,7 +460,7 @@ with tab1:
         st.info("No complete SBM data available for this division.")
 
 with tab2:
-    all_complete = [s for s in schools if s["data_status"] != "Pending"]
+    all_complete = [s for s in filtered_schools if s["data_status"] != "Pending"]
     reg_avgs = compute_dimension_averages(all_complete)
     if any(dim_avgs):
         fig = create_radar_chart(dim_avgs, reg_avgs)
@@ -378,7 +487,7 @@ with tab3:
 if search_query:
     st.markdown("---")
     st.markdown(f"### 🔍 Search Results for '{search_query}'")
-    matches = [s for s in schools if search_query.lower() in s["name"].lower() or search_query in s["id"]]
+    matches = [s for s in filtered_schools if search_query.lower() in s["name"].lower() or search_query in s["id"]]
     if matches:
         for match in matches:
             sdo = next(s for s in sdo_list if s["id"] == match["sdo_id"])
