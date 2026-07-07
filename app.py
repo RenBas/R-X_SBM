@@ -73,7 +73,7 @@ try:
 except FileNotFoundError:
     pass
 
-# ─── IMPORTS (ALL ABSOLUTE) ───
+# ─── IMPORTS ───
 from utils.constants import DIMENSION_NAMES
 from utils.data_loader import load_sdo_data, load_all_schools, get_schools_by_sdo, compute_dimension_averages
 from utils.map_helpers import add_sdo_shield, add_school_dot
@@ -385,7 +385,7 @@ with col3:
 with col4:
     st.metric("⬇️ Lowest Dimension (Urgent)", DIMENSION_NAMES[min_dim_idx] if overall_avg > 0 else "—", delta_color="inverse")
 
-# ─── SYNOPSIS SECTION ───
+# ─── SYNOPSIS SECTION (FOOLPROOF RENDERING) ───
 st.markdown("---")
 
 # Generate synopsis based on user role and data
@@ -401,7 +401,18 @@ synopsis_html = generate_synopsis(
     min_dim_idx=min_dim_idx
 )
 
-st.markdown(synopsis_html, unsafe_allow_html=True)
+# ─── RENDER SYNOPSIS USING st.components.v1.html (Most Reliable) ───
+from streamlit.components.v1 import html as st_html
+
+# Wrap the HTML in a div with proper styling to avoid any interference
+wrapped_html = f"""
+<div style="width:100%;padding:0;margin:0;box-sizing:border-box;">
+    {synopsis_html}
+</div>
+"""
+
+# Render using components – guaranteed to render raw HTML
+st_html(wrapped_html, height=900, scrolling=True)
 
 # ─── MAP ───
 st.markdown("---")
