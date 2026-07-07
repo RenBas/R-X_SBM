@@ -7,10 +7,11 @@ from .constants import DIMENSION_NAMES
 def create_radar_chart(division_avgs, regional_avgs):
     """
     Create a Plotly radar chart comparing division vs regional averages.
-    Increased size and added hover tooltips.
+    Increased size and added hover tooltips showing both values.
     """
     fig = go.Figure()
     
+    # ── Division trace (with hover showing both) ──
     fig.add_trace(go.Scatterpolar(
         r=division_avgs,
         theta=DIMENSION_NAMES,
@@ -18,10 +19,12 @@ def create_radar_chart(division_avgs, regional_avgs):
         name='This Division',
         line_color='#0033a0',
         fillcolor='rgba(0, 51, 160, 0.25)',
-        marker=dict(color='#0033a0', size=6),
-        hovertemplate='<b>%{theta}</b><br>Division: %{r:.1f}<extra></extra>'
+        marker=dict(color='#0033a0', size=8),
+        hovertemplate='<b>%{theta}</b><br>Division: %{r:.1f}<br>Region X: %{customdata:.1f}<extra></extra>',
+        customdata=regional_avgs  # Pass regional values to show in division hover
     ))
     
+    # ── Regional trace (with hover showing both) ──
     fig.add_trace(go.Scatterpolar(
         r=regional_avgs,
         theta=DIMENSION_NAMES,
@@ -30,8 +33,9 @@ def create_radar_chart(division_avgs, regional_avgs):
         line_color='#ce1126',
         line_dash='dash',
         fillcolor='rgba(206, 17, 38, 0.10)',
-        marker=dict(color='#ce1126', size=5),
-        hovertemplate='<b>%{theta}</b><br>Region X: %{r:.1f}<extra></extra>'
+        marker=dict(color='#ce1126', size=7),
+        hovertemplate='<b>%{theta}</b><br>Region X: %{r:.1f}<br>Division: %{customdata:.1f}<extra></extra>',
+        customdata=division_avgs  # Pass division values to show in regional hover
     ))
     
     fig.update_layout(
@@ -55,13 +59,15 @@ def create_radar_chart(division_avgs, regional_avgs):
             font=dict(size=13)
         ),
         margin=dict(l=60, r=60, t=60, b=60),
-        height=500,   # Larger height
-        width=700,    # Larger width
+        height=500,
+        width=700,
         paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)'
+        plot_bgcolor='rgba(0,0,0,0)',
+        hovermode='closest'  # Ensures hover works on both traces independently
     )
     
     return fig
+
 
 def create_trend_chart(years, values):
     """Create a bar chart showing historical trend."""
@@ -97,6 +103,7 @@ def create_trend_chart(years, values):
     )
     
     return fig
+
 
 def create_indicators_table(schools):
     """
