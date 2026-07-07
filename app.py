@@ -465,9 +465,8 @@ if role == "regional":
             else:
                 return 'background-color: #dc2626; color: white; font-weight: bold;'
         
-        # Apply styling and convert to HTML
-        styled_df = df.style.applymap(color_cell, subset=df.columns[1:])
-        # Convert to HTML
+        # Apply styling using map (not applymap – fixed for newer pandas)
+        styled_df = df.style.map(color_cell, subset=df.columns[1:])
         html_table = styled_df.to_html(index=False, escape=False)
         
         # Display with markdown (using inline styling to match theme)
