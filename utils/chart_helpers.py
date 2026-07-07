@@ -5,7 +5,10 @@ import pandas as pd
 from .constants import DIMENSION_NAMES
 
 def create_radar_chart(division_avgs, regional_avgs):
-    """Create a Plotly radar chart comparing division vs regional averages."""
+    """
+    Create a Plotly radar chart comparing division vs regional averages.
+    Increased size and added hover tooltips.
+    """
     fig = go.Figure()
     
     fig.add_trace(go.Scatterpolar(
@@ -15,7 +18,8 @@ def create_radar_chart(division_avgs, regional_avgs):
         name='This Division',
         line_color='#0033a0',
         fillcolor='rgba(0, 51, 160, 0.25)',
-        marker=dict(color='#0033a0', size=4)
+        marker=dict(color='#0033a0', size=6),
+        hovertemplate='<b>%{theta}</b><br>Division: %{r:.1f}<extra></extra>'
     ))
     
     fig.add_trace(go.Scatterpolar(
@@ -26,7 +30,8 @@ def create_radar_chart(division_avgs, regional_avgs):
         line_color='#ce1126',
         line_dash='dash',
         fillcolor='rgba(206, 17, 38, 0.10)',
-        marker=dict(color='#ce1126', size=3)
+        marker=dict(color='#ce1126', size=5),
+        hovertemplate='<b>%{theta}</b><br>Region X: %{r:.1f}<extra></extra>'
     ))
     
     fig.update_layout(
@@ -35,10 +40,10 @@ def create_radar_chart(division_avgs, regional_avgs):
                 visible=True,
                 range=[0, 3],
                 tickvals=[0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0],
-                tickfont=dict(size=9)
+                tickfont=dict(size=11)
             ),
             angularaxis=dict(
-                tickfont=dict(size=10)
+                tickfont=dict(size=13)
             )
         ),
         legend=dict(
@@ -47,10 +52,11 @@ def create_radar_chart(division_avgs, regional_avgs):
             y=1.1,
             xanchor='center',
             x=0.5,
-            font=dict(size=11)
+            font=dict(size=13)
         ),
-        margin=dict(l=40, r=40, t=40, b=40),
-        height=300,
+        margin=dict(l=60, r=60, t=60, b=60),
+        height=500,   # Larger height
+        width=700,    # Larger width
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)'
     )
@@ -95,7 +101,6 @@ def create_trend_chart(years, values):
 def create_indicators_table(schools):
     """
     Create a DataFrame of indicator averages for the selected division.
-    
     For the prototype, we use sample indicators (14 of the 42).
     In production, this will map to all 42 indicators from the DO.
     """
