@@ -8,6 +8,9 @@ from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 from .twin_helpers import compute_dimension_averages_from_scores, get_degree_value
 
+# Import DIMENSION_NAMES from the main constants (correct import)
+from ..constants import DIMENSION_NAMES
+
 
 @dataclass
 class RiskProfile:
@@ -63,13 +66,15 @@ class RiskAnalyzer:
         
         # 1. Analyze each dimension
         for i, score in enumerate(scores):
-            weight = self.dimension_weights.get(DIMENSION_NAMES[i] if i < len(DIMENSION_NAMES) else "", 1.0)
+            # Use DIMENSION_NAMES from the imported constant (now available)
+            dim_name = DIMENSION_NAMES[i] if i < len(DIMENSION_NAMES) else f"Dim {i+1}"
+            weight = self.dimension_weights.get(dim_name, 1.0)
             total_weight += weight
             
             if score < 1.0:
                 risk_score += weight * 1.0  # High risk
                 risk_factors.append({
-                    "dimension": DIMENSION_NAMES[i] if i < len(DIMENSION_NAMES) else f"Dim {i+1}",
+                    "dimension": dim_name,
                     "score": score,
                     "risk_level": "High",
                     "weight": weight,
@@ -78,7 +83,7 @@ class RiskAnalyzer:
             elif score < 2.0:
                 risk_score += weight * 0.6
                 risk_factors.append({
-                    "dimension": DIMENSION_NAMES[i] if i < len(DIMENSION_NAMES) else f"Dim {i+1}",
+                    "dimension": dim_name,
                     "score": score,
                     "risk_level": "Moderate",
                     "weight": weight,
@@ -87,7 +92,7 @@ class RiskAnalyzer:
             elif score < 2.5:
                 risk_score += weight * 0.2
                 risk_factors.append({
-                    "dimension": DIMENSION_NAMES[i] if i < len(DIMENSION_NAMES) else f"Dim {i+1}",
+                    "dimension": dim_name,
                     "score": score,
                     "risk_level": "Low",
                     "weight": weight,
@@ -95,7 +100,7 @@ class RiskAnalyzer:
                 })
             else:
                 risk_factors.append({
-                    "dimension": DIMENSION_NAMES[i] if i < len(DIMENSION_NAMES) else f"Dim {i+1}",
+                    "dimension": dim_name,
                     "score": score,
                     "risk_level": "Minimal",
                     "weight": weight,
@@ -171,6 +176,7 @@ class RiskAnalyzer:
         for school in schools_data:
             scores = school.get("dimension_scores", [0, 0, 0, 0, 0, 0])
             total_scores += np.array(scores)
+            # approximate risk score from previous analysis (if present)
             if school.get("risk_score", 0) > 0.5:
                 at_risk_count += 1
         
