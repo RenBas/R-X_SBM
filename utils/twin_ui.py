@@ -6,7 +6,6 @@ Renders the scenario builder, prediction charts, impact analysis, and risk repor
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import numpy as np
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -14,10 +13,8 @@ from typing import Dict, List, Optional
 # Import simulation engine components
 from .simulation_engine import (
     MarkovModel,
-    CausalModel,
     MonteCarloSimulation,
-    RiskAnalyzer,
-    Forecaster
+    RiskAnalyzer
 )
 from .constants import DIMENSION_NAMES
 
@@ -29,84 +26,95 @@ def render_sandbox(sdo_list, selected_sdo, schools_in_sdo, complete_schools, dim
     st.markdown("## 🧪 Digital Twin Sandbox")
     st.caption("Run 'what-if' simulations to predict SBM performance under different intervention scenarios.")
     
-    # ─── Sidebar within the sandbox (intervention controls) ───
-    with st.sidebar:
-        st.markdown("### 🎛️ Scenario Builder")
-        st.markdown("Adjust the sliders below to define your intervention scenario.")
+    # ─── Check if we have data ───
+    if not schools_in_sdo:
+        st.warning("No school data available. Please upload SBM data first.")
+        return
+    
+    # ─── Scenario Builder (in main content, not sidebar) ───
+    with st.expander("🎛️ Scenario Builder – Adjust Intervention Parameters", expanded=True):
+        col1, col2 = st.columns(2)
         
-        # Target selection - with unique key
-        target_type = st.radio(
-            "Target",
-            options=["Division", "Individual School"],
-            index=0,
-            horizontal=True,
-            key="sandbox_target_type"
-        )
-        
-        if target_type == "Division":
-            division_names = [s["name"] for s in sdo_list]
-            target_division = st.selectbox(
-                "Select Division",
-                options=division_names,
+        with col1:
+            # Target selection
+            target_type = st.radio(
+                "Target",
+                options=["Division", "Individual School"],
                 index=0,
-                key="sandbox_target_division"
+                horizontal=True,
+                key="sandbox_target_type"
             )
-            target_sdo = next(s for s in sdo_list if s["name"] == target_division)
-            # For division, we aggregate all schools in that division
-            target_schools = [s for s in schools_in_sdo if s.get("division") == target_division]
-            st.caption(f"Schools in {target_division}: {len(target_schools)}")
-        else:
-            school_names = [s["name"] for s in schools_in_sdo]
-            target_school = st.selectbox(
-                "Select School",
-                options=school_names,
-                index=0,
-                key="sandbox_target_school"
-            )
-            target_sdo = next(s for s in sdo_list if s["name"] == selected_sdo["name"])  # keep division context
-            target_schools = [s for s in schools_in_sdo if s["name"] == target_school]
-            st.caption(f"School: {target_school}")
+            
+            if target_type == "Division":
+                division_names = [s["name"] for s in sdo_list]
+                # Default to the currently selected division
+                default_idx = 0
+                for i, name in enumerate(division_names):
+                    if name == selected_sdo["name"]:
+                        default_idx = i
+                        break
+                target_division = st.selectbox(
+                    "Select Division",
+                    options=division_names,
+                    index=default_idx,
+                    key="sandbox_target_division"
+                )
+                target_sdo = next(s for s in sdo_list if s["name"] == target_division)
+                # Filter schools by division
+                target_schools = [s for s in schools_in_sdo if s.get("division") == target_division]
+                st.caption(f"📊 Schools in {target_division}: {len(target_schools)}")
+            else:
+                school_names = [s["name"] for s in schools_in_sdo]
+                target_school = st.selectbox(
+                    "Select School",
+                    options=school_names,
+                    index=0,
+                    key="sandbox_target_school"
+                )
+                target_schools = [s for s in schools_in_sdo if s["name"] == target_school]
+                st.caption(f"🏫 School: {target_school}")
         
-        st.markdown("---")
-        st.markdown("#### 📊 Intervention Intensities")
-        
-        # Define interventions - all with unique keys
-        interventions = {
-            "technical_assistance": st.slider(
+        with col2:
+            st.markdown("#### 📊 Intervention Parameters")
+            
+            ta_visits = st.slider(
                 "Technical Assistance (TA) Visits",
                 min_value=0, max_value=10, value=2,
                 help="Number of TA visits per year",
                 key="sandbox_ta_visits"
-            ),
-            "capacity_building": st.slider(
+            )
+            
+            training_days = st.slider(
                 "Capacity Building (Training Days)",
                 min_value=0, max_value=10, value=2,
                 help="Number of training days per year",
                 key="sandbox_training_days"
-            ),
-            "budget_increase": st.slider(
+            )
+            
+            budget_increase = st.slider(
                 "Budget Increase (%)",
                 min_value=0, max_value=50, value=10,
                 help="Percentage increase in MOOE allocation",
                 key="sandbox_budget_increase"
-            ),
-            "policy_change": st.selectbox(
+            )
+            
+            policy_change = st.selectbox(
                 "Policy Change",
                 options=["None", "New Curriculum", "Revised SBM Guidelines"],
                 index=0,
                 key="sandbox_policy_change"
             )
-        }
-        
-        # Time horizon
-        time_horizon = st.slider(
-            "Time Horizon (Years)",
-            min_value=1, max_value=5, value=3,
-            help="Number of years to forecast",
-            key="sandbox_time_horizon"
-        )
-        
-        # Run button
+            
+            time_horizon = st.slider(
+                "Time Horizon (Years)",
+                min_value=1, max_value=5, value=3,
+                help="Number of years to forecast",
+                key="sandbox_time_horizon"
+            )
+    
+    # ─── Run Button ───
+    col_run, col_clear = st.columns([1, 4])
+    with col_run:
         run_simulation = st.button(
             "🚀 Run Simulation",
             use_container_width=True,
@@ -114,14 +122,22 @@ def render_sandbox(sdo_list, selected_sdo, schools_in_sdo, complete_schools, dim
             key="sandbox_run_button"
         )
     
-    # ─── Main content area ───
+    # ─── Simulation Results ───
     if run_simulation:
-        st.markdown("### 📈 Simulation Results")
-        
-        # ── Prepare data ──
         if not target_schools:
             st.warning("No schools found for the selected target. Please check your selection.")
             return
+        
+        st.markdown("---")
+        st.markdown("### 📈 Simulation Results")
+        
+        # Prepare interventions dict
+        interventions = {
+            "technical_assistance": ta_visits,
+            "capacity_building": training_days,
+            "budget_increase": budget_increase,
+            "policy_change": policy_change
+        }
         
         # ── Run simulation ──
         with st.spinner("Running simulation..."):
@@ -136,7 +152,7 @@ def render_sandbox(sdo_list, selected_sdo, schools_in_sdo, complete_schools, dim
         display_simulation_results(results, target_type, time_horizon)
     
     else:
-        st.info("👈 Adjust the intervention parameters in the sidebar and click 'Run Simulation' to see predictions.")
+        st.info("👆 Adjust the intervention parameters above and click 'Run Simulation' to see predictions.")
 
 
 def run_simulation_engine(target_schools, interventions, time_horizon, target_type):
@@ -171,6 +187,11 @@ def run_simulation_engine(target_schools, interventions, time_horizon, target_ty
     
     for school in target_schools:
         scores = school.get("dimension_scores", [0, 0, 0, 0, 0, 0])
+        
+        # Skip schools with no data
+        if all(s == 0 for s in scores):
+            continue
+            
         # Markov prediction
         markov_result = markov.predict_school_transition(
             school_id=school.get("id", "unknown"),
@@ -187,8 +208,7 @@ def run_simulation_engine(target_schools, interventions, time_horizon, target_ty
             volatility=0.15
         )
         
-        # Risk analysis (based on current and predicted)
-        predicted_scores = [score + intervention_effects.get(f"dim_{i}", 0) * 2 for i, score in enumerate(scores)]
+        # Risk analysis
         risk_profile = risk_analyzer.analyze_school({
             "id": school.get("id"),
             "name": school.get("name"),
@@ -205,8 +225,23 @@ def run_simulation_engine(target_schools, interventions, time_horizon, target_ty
         # Track overall for aggregation
         overall_predictions.append(mc_result.forecast_values[-1] if mc_result.forecast_values else scores[0])
     
+    if not school_predictions:
+        # No valid schools found
+        return {
+            "target_type": target_type,
+            "time_horizon": time_horizon,
+            "school_predictions": [],
+            "avg_current": 0,
+            "avg_predicted": 0,
+            "state_distribution": {},
+            "impact_analysis": {"ta_impact": 0, "training_impact": 0, "budget_impact": 0, "combined_impact": 0, "significance": "No Data"},
+            "risk_summary": {"avg_risk_score": 0, "high_risk_percentage": 0, "high_risk_schools": [], "recommendations": ["No data available."]},
+            "interventions": interventions,
+            "intervention_effects": intervention_effects
+        }
+    
     # ── Aggregate division-level results ──
-    avg_current = sum(s.get("overall_index", 0) for s in target_schools) / len(target_schools) if target_schools else 0
+    avg_current = sum(s.get("overall_index", 0) for s in target_schools if s.get("overall_index", 0) > 0) / len(target_schools) if target_schools else 0
     avg_predicted = sum(overall_predictions) / len(overall_predictions) if overall_predictions else 0
     
     # Compute distribution of states at final year
@@ -256,6 +291,10 @@ def display_simulation_results(results, target_type, time_horizon):
     """
     Display simulation results using Streamlit components and Plotly charts.
     """
+    if not results["school_predictions"]:
+        st.warning("No valid schools found for simulation. Please check your data.")
+        return
+    
     # ── Summary metrics ──
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -293,7 +332,6 @@ def display_simulation_results(results, target_type, time_horizon):
     
     # Average forecast from Monte Carlo across all schools
     avg_forecast = [results['avg_current']]
-    # Extract forecasted values from school predictions
     forecast_values = []
     for pred in results['school_predictions']:
         forecast_values.append(pred['monte_carlo'].forecast_values)
@@ -356,23 +394,26 @@ def display_simulation_results(results, target_type, time_horizon):
     st.markdown("#### 📊 State Distribution (Final Year)")
     dist = results['state_distribution']
     
-    fig2 = go.Figure(data=[
-        go.Bar(
-            x=list(dist.keys()),
-            y=list(dist.values()),
-            marker_color=['#9CA3AF', '#F97316', '#EAB308', '#22C55E'],
-            text=[f"{v:.1f}%" for v in dist.values()],
-            textposition='auto'
+    if dist:
+        fig2 = go.Figure(data=[
+            go.Bar(
+                x=list(dist.keys()),
+                y=list(dist.values()),
+                marker_color=['#9CA3AF', '#F97316', '#EAB308', '#22C55E'],
+                text=[f"{v:.1f}%" for v in dist.values()],
+                textposition='auto'
+            )
+        ])
+        fig2.update_layout(
+            title="Percentage of Schools by SBM State",
+            yaxis_title="Percentage (%)",
+            height=300,
+            margin=dict(l=40, r=40, t=40, b=40),
+            xaxis=dict(tickangle=-15)
         )
-    ])
-    fig2.update_layout(
-        title="Percentage of Schools by SBM State",
-        yaxis_title="Percentage (%)",
-        height=300,
-        margin=dict(l=40, r=40, t=40, b=40),
-        xaxis=dict(tickangle=-15)
-    )
-    st.plotly_chart(fig2, width='stretch', key="sandbox_distribution_chart")
+        st.plotly_chart(fig2, width='stretch', key="sandbox_distribution_chart")
+    else:
+        st.caption("No state distribution data available.")
     
     # ── Impact Analysis ──
     st.markdown("#### 🔍 Intervention Impact Analysis")
@@ -399,8 +440,9 @@ def display_simulation_results(results, target_type, time_horizon):
         st.metric("Average Risk Score", f"{risk.get('avg_risk_score', 0):.2f}")
         st.caption(f"High Risk Schools: {risk.get('high_risk_percentage', 0):.1f}%")
     with col2:
-        st.metric("Total Schools at Risk", risk.get('high_risk_schools', 0))
-        if risk.get('high_risk_schools'):
+        high_risk_count = len(risk.get('high_risk_schools', []))
+        st.metric("Total Schools at Risk", high_risk_count)
+        if high_risk_count > 0:
             st.write("Affected schools:")
             for name in risk.get('high_risk_schools', [])[:3]:
                 st.write(f"- {name}")
