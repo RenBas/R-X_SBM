@@ -157,6 +157,26 @@ class MarkovModel:
         Returns:
             Dict with prediction results
         """
+        # ─── GUARD: if all scores are zero, return a flat prediction ───
+        if not current_scores or all(s == 0 for s in current_scores):
+            return {
+                "school_id": school_id,
+                "current_state": "Not Yet Manifested",
+                "current_index": 0.0,
+                "steps": [
+                    {
+                        "step": i + 1,
+                        "state": "Not Yet Manifested",
+                        "score": 0.0,
+                        "confidence": 1.0,
+                        "time_period": f"Year {i + 1}"
+                    }
+                    for i in range(steps)
+                ],
+                "predicted_states": ["Not Yet Manifested"] * steps,
+                "confidence_scores": [1.0] * steps
+            }
+        
         # Compute current overall index
         overall = round(sum(current_scores) / len(current_scores), 1)
         current_state = self.transition.get_state_from_score(overall)
@@ -212,6 +232,9 @@ class MarkovModel:
         for school in schools_data:
             school_id = school.get("id")
             scores = school.get("dimension_scores", [0, 0, 0, 0, 0, 0])
+            # Skip schools with no data (all zeros)
+            if all(s == 0 for s in scores):
+                continue
             pred = self.predict_school_transition(school_id, scores, interventions, steps)
             results.append(pred)
         
