@@ -1,17 +1,10 @@
 """
 Simulation Engine for SBM Digital Twin – Phase 2.
-
-This package contains all core simulation and prediction modules:
-- markov_model: Markov Chain for state transitions
-- causal_model: Causal impact analysis for interventions
-- monte_carlo: Monte Carlo simulation for probabilistic forecasts
-- risk_analyzer: At-risk school detection
-- forecaster: Time-series forecasting
-- twin_helpers: Shared utility functions
 """
 
 from .markov_model import MarkovModel, StateTransition
-from .causal_model import CausalModel, InterventionImpact
+# Temporarily disabled to avoid scikit-learn dependency
+# from .causal_model import CausalModel, InterventionImpact
 from .monte_carlo import MonteCarloSimulation
 from .risk_analyzer import RiskAnalyzer
 from .forecaster import Forecaster
@@ -20,14 +13,16 @@ from .twin_helpers import (
     get_dimension_index,
     normalize_scores,
     validate_sbm_data,
-    compute_dimension_averages_from_scores
+    compute_dimension_averages_from_scores,
+    compute_overall_index,
+    calculate_urgency_factor
 )
 
 __all__ = [
     "MarkovModel",
     "StateTransition",
-    "CausalModel",
-    "InterventionImpact",
+    # "CausalModel",
+    # "InterventionImpact",
     "MonteCarloSimulation",
     "RiskAnalyzer",
     "Forecaster",
@@ -36,4 +31,6 @@ __all__ = [
     "normalize_scores",
     "validate_sbm_data",
     "compute_dimension_averages_from_scores",
+    "compute_overall_index",
+    "calculate_urgency_factor",
 ]
