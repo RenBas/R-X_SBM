@@ -26,7 +26,17 @@ def render_sandbox(sdo_list, selected_sdo, schools_in_sdo, complete_schools, dim
     st.markdown("## 🧪 Digital Twin Sandbox")
     st.caption("Run 'what-if' simulations to predict SBM performance under different intervention scenarios.")
     
-    # ─── Check if we have data ───
+    # ─── Get all schools for the sandbox (unfiltered) ───
+    # We need to access the full school list from session state or a global variable.
+    # Since we have sdo_list and schools_in_sdo, we need to get the full list.
+    # The full list is available in the main app but not passed here.
+    # We'll use the schools_in_sdo which is already filtered by role, but we'll also
+    # try to get the full list from the sdo_list relationship.
+    
+    # Build a mapping of SDO names to SDO IDs for filtering
+    sdo_name_to_id = {sdo["name"]: sdo["id"] for sdo in sdo_list}
+    
+    # Check if we have any schools
     if not schools_in_sdo:
         st.warning("No school data available. Please upload SBM data first.")
         return
@@ -59,9 +69,12 @@ def render_sandbox(sdo_list, selected_sdo, schools_in_sdo, complete_schools, dim
                     index=default_idx,
                     key="sandbox_target_division"
                 )
-                target_sdo = next(s for s in sdo_list if s["name"] == target_division)
-                # Filter schools by division
-                target_schools = [s for s in schools_in_sdo if s.get("division") == target_division]
+                
+                # Filter schools by division name
+                # Use the sdo_id to filter if division name is not directly in school data
+                target_sdo_id = sdo_name_to_id.get(target_division)
+                target_schools = [s for s in schools_in_sdo if s.get("sdo_id") == target_sdo_id or s.get("division") == target_division]
+                
                 st.caption(f"📊 Schools in {target_division}: {len(target_schools)}")
             else:
                 school_names = [s["name"] for s in schools_in_sdo]
@@ -111,6 +124,12 @@ def render_sandbox(sdo_list, selected_sdo, schools_in_sdo, complete_schools, dim
                 help="Number of years to forecast",
                 key="sandbox_time_horizon"
             )
+    
+    # ─── Debug: Show how many schools were found ───
+    if target_schools:
+        st.caption(f"✅ Found {len(target_schools)} school(s) for simulation.")
+    else:
+        st.warning("⚠️ No schools found for the selected target. Please check your selection or upload data.")
     
     # ─── Run Button ───
     col_run, col_clear = st.columns([1, 4])
@@ -189,7 +208,7 @@ def run_simulation_engine(target_schools, interventions, time_horizon, target_ty
         scores = school.get("dimension_scores", [0, 0, 0, 0, 0, 0])
         
         # Skip schools with no data
-        if all(s == 0 for s in scores):
+        if all(s == 0 for s in scores) or school.get("data_status") == "Pending":
             continue
             
         # Markov prediction
@@ -235,13 +254,15 @@ def run_simulation_engine(target_schools, interventions, time_horizon, target_ty
             "avg_predicted": 0,
             "state_distribution": {},
             "impact_analysis": {"ta_impact": 0, "training_impact": 0, "budget_impact": 0, "combined_impact": 0, "significance": "No Data"},
-            "risk_summary": {"avg_risk_score": 0, "high_risk_percentage": 0, "high_risk_schools": [], "recommendations": ["No data available."]},
+            "risk_summary": {"avg_risk_score": 0, "high_risk_percentage": 0, "high_risk_schools": [], "recommendations": ["No data available for simulation."]},
             "interventions": interventions,
             "intervention_effects": intervention_effects
         }
     
     # ── Aggregate division-level results ──
-    avg_current = sum(s.get("overall_index", 0) for s in target_schools if s.get("overall_index", 0) > 0) / len(target_schools) if target_schools else 0
+    # Compute average current from schools that have data
+    valid_schools = [s for s in target_schools if s.get("overall_index", 0) > 0]
+    avg_current = sum(s.get("overall_index", 0) for s in valid_schools) / len(valid_schools) if valid_schools else 0
     avg_predicted = sum(overall_predictions) / len(overall_predictions) if overall_predictions else 0
     
     # Compute distribution of states at final year
@@ -255,7 +276,7 @@ def run_simulation_engine(target_schools, interventions, time_horizon, target_ty
     state_distribution = {k: round(v / total * 100, 1) for k, v in state_distribution.items()}
     
     # ── Causal impact analysis (simplified) ──
-    improvement = avg_predicted - avg_current
+    improvement = avg_predicted - avg_current if avg_current > 0 else 0
     impact_analysis = {
         "ta_impact": round(interventions["technical_assistance"] * 0.05, 2),
         "training_impact": round(interventions["capacity_building"] * 0.04, 2),
