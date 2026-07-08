@@ -3,11 +3,9 @@ Simulation Engine for SBM Digital Twin – Phase 2.
 """
 
 from .markov_model import MarkovModel, StateTransition
-# Temporarily disabled to avoid scikit-learn dependency
-# from .causal_model import CausalModel, InterventionImpact
 from .monte_carlo import MonteCarloSimulation
 from .risk_analyzer import RiskAnalyzer
-from .forecaster import Forecaster
+# from .forecaster import Forecaster  # Disabled to avoid sklearn dependency
 from .twin_helpers import (
     calculate_degree_of_manifestation,
     get_dimension_index,
@@ -21,11 +19,9 @@ from .twin_helpers import (
 __all__ = [
     "MarkovModel",
     "StateTransition",
-    # "CausalModel",
-    # "InterventionImpact",
     "MonteCarloSimulation",
     "RiskAnalyzer",
-    "Forecaster",
+    # "Forecaster",
     "calculate_degree_of_manifestation",
     "get_dimension_index",
     "normalize_scores",
