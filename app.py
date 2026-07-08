@@ -83,7 +83,7 @@ from utils.auth import (
     authenticate, login_status, logout, get_accessible_schools,
     get_accessible_divisions_summary, is_school_head
 )
-from utils.download_helpers import generate_report_data, generate_template_csv
+from utils.download_helpers import generate_report_data, generate_excel_template, generate_template_csv
 from utils.synopsis_generator import generate_synopsis
 
 # ════════════════════════════════════════════════════════════════
@@ -294,6 +294,7 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 📊 Data Management")
     
+    # Download Report
     if selected_sdo_id is not None and selected_sdo is not None:
         report_df = generate_report_data(selected_sdo["name"], schools_in_sdo, complete_schools)
         if report_df is not None and not report_df.empty:
@@ -310,16 +311,47 @@ with st.sidebar:
     else:
         st.caption("Select a division to download report.")
     
-    template_df = generate_template_csv()
-    csv_template = template_df.to_csv(index=False)
+    # Download Excel Template (Comprehensive)
+    template_file = generate_excel_template()
     st.download_button(
-        label="📋 Download Data Collection Template (CSV)",
-        data=csv_template,
-        file_name="SBM_Data_Collection_Template.csv",
-        mime="text/csv",
+        label="📋 Download Data Collection Template (Excel)",
+        data=template_file,
+        file_name="SBM_Data_Collection_Template.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True
     )
     st.caption("Template based on DepEd Order No. 007, s. 2024")
+    
+    # ─── UPLOAD SBM DATA ───
+    st.markdown("---")
+    st.markdown("### 📤 Upload SBM Data")
+    st.caption("Upload a completed Excel template to update the dashboard.")
+    
+    uploaded_file = st.file_uploader(
+        "Choose an Excel file (.xlsx)",
+        type=["xlsx"],
+        key="sbm_data_upload"
+    )
+    
+    if uploaded_file is not None:
+        try:
+            # Load the uploaded Excel file
+            df_schools = pd.read_excel(uploaded_file, sheet_name="School Information")
+            df_assessment = pd.read_excel(uploaded_file, sheet_name="SBM Assessment")
+            
+            st.success(f"✅ Successfully uploaded: {uploaded_file.name}")
+            st.caption(f"School Information: {len(df_schools)} schools")
+            st.caption(f"SBM Assessment: {len(df_assessment)} indicator scores")
+            
+            with st.expander("📄 Preview Uploaded Data"):
+                st.dataframe(df_schools.head(5), width='stretch')
+                st.dataframe(df_assessment.head(10), width='stretch')
+            
+            # Placeholder for data processing
+            st.info("📌 Data processing will be implemented during Phase 2.")
+            
+        except Exception as e:
+            st.error(f"❌ Error reading file: {e}")
     
     st.markdown("---")
     if st.button("🚪 Logout", use_container_width=True):
