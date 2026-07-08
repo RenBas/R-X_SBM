@@ -34,53 +34,67 @@ def render_sandbox(sdo_list, selected_sdo, schools_in_sdo, complete_schools, dim
         st.markdown("### 🎛️ Scenario Builder")
         st.markdown("Adjust the sliders below to define your intervention scenario.")
         
-        # Target selection
+        # Target selection - with unique key
         target_type = st.radio(
             "Target",
             options=["Division", "Individual School"],
             index=0,
-            horizontal=True
+            horizontal=True,
+            key="sandbox_target_type"
         )
         
         if target_type == "Division":
             division_names = [s["name"] for s in sdo_list]
-            target_division = st.selectbox("Select Division", options=division_names, index=0)
+            target_division = st.selectbox(
+                "Select Division",
+                options=division_names,
+                index=0,
+                key="sandbox_target_division"
+            )
             target_sdo = next(s for s in sdo_list if s["name"] == target_division)
             # For division, we aggregate all schools in that division
-            target_schools = [s for s in schools_in_sdo if s["division"] == target_division]  # Note: schools_in_sdo is filtered by role; we may need unfiltered.
-            # For now, we'll use all schools in the selected division from the global list.
-            # We'll need to pass full school list; we'll handle this in app.py.
-            # We'll retrieve from session state if available.
+            target_schools = [s for s in schools_in_sdo if s.get("division") == target_division]
             st.caption(f"Schools in {target_division}: {len(target_schools)}")
         else:
             school_names = [s["name"] for s in schools_in_sdo]
-            target_school = st.selectbox("Select School", options=school_names, index=0)
+            target_school = st.selectbox(
+                "Select School",
+                options=school_names,
+                index=0,
+                key="sandbox_target_school"
+            )
             target_sdo = next(s for s in sdo_list if s["name"] == selected_sdo["name"])  # keep division context
+            target_schools = [s for s in schools_in_sdo if s["name"] == target_school]
+            st.caption(f"School: {target_school}")
         
         st.markdown("---")
         st.markdown("#### 📊 Intervention Intensities")
         
-        # Define interventions
+        # Define interventions - all with unique keys
         interventions = {
             "technical_assistance": st.slider(
                 "Technical Assistance (TA) Visits",
                 min_value=0, max_value=10, value=2,
-                help="Number of TA visits per year"
+                help="Number of TA visits per year",
+                key="sandbox_ta_visits"
             ),
             "capacity_building": st.slider(
                 "Capacity Building (Training Days)",
                 min_value=0, max_value=10, value=2,
-                help="Number of training days per year"
+                help="Number of training days per year",
+                key="sandbox_training_days"
             ),
             "budget_increase": st.slider(
                 "Budget Increase (%)",
                 min_value=0, max_value=50, value=10,
-                help="Percentage increase in MOOE allocation"
+                help="Percentage increase in MOOE allocation",
+                key="sandbox_budget_increase"
             ),
             "policy_change": st.selectbox(
                 "Policy Change",
                 options=["None", "New Curriculum", "Revised SBM Guidelines"],
-                index=0
+                index=0,
+                key="sandbox_policy_change"
             )
         }
         
@@ -88,27 +102,23 @@ def render_sandbox(sdo_list, selected_sdo, schools_in_sdo, complete_schools, dim
         time_horizon = st.slider(
             "Time Horizon (Years)",
             min_value=1, max_value=5, value=3,
-            help="Number of years to forecast"
+            help="Number of years to forecast",
+            key="sandbox_time_horizon"
         )
         
         # Run button
-        run_simulation = st.button("🚀 Run Simulation", use_container_width=True, type="primary")
+        run_simulation = st.button(
+            "🚀 Run Simulation",
+            use_container_width=True,
+            type="primary",
+            key="sandbox_run_button"
+        )
     
     # ─── Main content area ───
     if run_simulation:
         st.markdown("### 📈 Simulation Results")
         
         # ── Prepare data ──
-        # Determine target schools based on selection
-        if target_type == "Division":
-            # Get all schools in the division from the global list (unfiltered)
-            # We'll need to access the full school list from session state
-            # For now, we'll simulate using the passed-in schools_in_sdo (which may be filtered by user role)
-            # In production, we should use a complete list.
-            target_schools = [s for s in schools_in_sdo if s.get("division") == target_division]
-        else:
-            target_schools = [s for s in schools_in_sdo if s["name"] == target_school]
-        
         if not target_schools:
             st.warning("No schools found for the selected target. Please check your selection.")
             return
@@ -139,7 +149,6 @@ def run_simulation_engine(target_schools, interventions, time_horizon, target_ty
     risk_analyzer = RiskAnalyzer()
     
     # Prepare intervention effects for Monte Carlo
-    # Map the slider values to effects on dimensions (simplified)
     intervention_effects = {
         "dim_0": interventions["technical_assistance"] * 0.03,
         "dim_1": interventions["capacity_building"] * 0.02,
@@ -211,7 +220,6 @@ def run_simulation_engine(target_schools, interventions, time_horizon, target_ty
     state_distribution = {k: round(v / total * 100, 1) for k, v in state_distribution.items()}
     
     # ── Causal impact analysis (simplified) ──
-    # For demonstration, we compute a simple correlation between intervention intensity and improvement
     improvement = avg_predicted - avg_current
     impact_analysis = {
         "ta_impact": round(interventions["technical_assistance"] * 0.05, 2),
@@ -342,7 +350,7 @@ def display_simulation_results(results, target_type, time_horizon):
         hovermode='x unified'
     )
     
-    st.plotly_chart(fig, width='stretch')
+    st.plotly_chart(fig, width='stretch', key="sandbox_forecast_chart")
     
     # ── State Distribution ──
     st.markdown("#### 📊 State Distribution (Final Year)")
@@ -364,7 +372,7 @@ def display_simulation_results(results, target_type, time_horizon):
         margin=dict(l=40, r=40, t=40, b=40),
         xaxis=dict(tickangle=-15)
     )
-    st.plotly_chart(fig2, width='stretch')
+    st.plotly_chart(fig2, width='stretch', key="sandbox_distribution_chart")
     
     # ── Impact Analysis ──
     st.markdown("#### 🔍 Intervention Impact Analysis")
@@ -408,5 +416,6 @@ def display_simulation_results(results, target_type, time_horizon):
         data=pd.DataFrame(results['school_predictions']).to_csv(index=False),
         file_name="simulation_report.csv",
         mime="text/csv",
-        use_container_width=True
+        use_container_width=True,
+        key="sandbox_export_button"
     )
