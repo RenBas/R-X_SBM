@@ -104,7 +104,6 @@ if "uploaded_sdo_list" not in st.session_state:
 if "uploaded_schools" not in st.session_state:
     st.session_state.uploaded_schools = None
 
-# Store debug info in session state so we can display it after processing
 if "debug_info" not in st.session_state:
     st.session_state.debug_info = {}
 
@@ -423,7 +422,7 @@ with st.sidebar:
     st.caption("DepEd Region X – Northern Mindanao")
 
 # ────────────────────────────────────────────────────────────────
-# 6. PROCESS UPLOAD – SINGLE-SHEET TEMPLATE
+# 6. PROCESS UPLOAD – SINGLE-SHEET TEMPLATE (with NaN fix)
 # ────────────────────────────────────────────────────────────────
 
 def process_uploaded_excel(uploaded_file):
@@ -459,15 +458,14 @@ def process_uploaded_excel(uploaded_file):
 
     debug["dimension_column_counts"] = {DIMENSION_NAMES[i]: len(dim_columns[i]) for i in range(6)}
 
-    # ── Build schools list ──
+    # ── Build schools list (with safe NaN handling) ──
     schools = []
     for idx, row in df.iterrows():
-        # Get dimension scores by averaging all columns with that prefix
+        # Convert dimension scores safely
         dimension_scores = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
         for dim_idx in range(6):
             cols = dim_columns[dim_idx]
             if cols:
-                # Convert to numeric, coerce errors to NaN, then drop NaN before averaging
                 vals = pd.to_numeric(row[cols], errors="coerce").dropna()
                 if not vals.empty:
                     dimension_scores[dim_idx] = vals.mean()
@@ -476,20 +474,28 @@ def process_uploaded_excel(uploaded_file):
             else:
                 dimension_scores[dim_idx] = 0.0
 
-        # Handle missing metadata gracefully
+        # Safe conversion of metadata
+        def safe_float(val):
+            v = pd.to_numeric(val, errors='coerce')
+            return 0.0 if pd.isna(v) else float(v)
+
+        def safe_int(val):
+            v = pd.to_numeric(val, errors='coerce')
+            return 0 if pd.isna(v) else int(v)
+
         school = {
             "id": str(row.get("School ID", idx)),
-            "name": row.get("School Name", f"School {idx}"),
-            "type": row.get("School Type", ""),
-            "degree": row.get("School Type", ""),
-            "sdo_id": row.get("Division", ""),
-            "data_status": row.get("Data Status", "Complete"),
-            "lat": float(row.get("Latitude", 0)),
-            "lng": float(row.get("Longitude", 0)),
-            "enrollment": int(row.get("Enrollment", 0)),
-            "urban_rural": row.get("Urban/Rural", "Urban"),
-            "head_name": row.get("School Head Name", ""),
-            "head_email": row.get("School Head Email", ""),
+            "name": str(row.get("School Name", f"School {idx}")),
+            "type": str(row.get("School Type", "")),
+            "degree": str(row.get("School Type", "")),
+            "sdo_id": str(row.get("Division", "")),
+            "data_status": str(row.get("Data Status", "Complete")),
+            "lat": safe_float(row.get("Latitude", 0)),
+            "lng": safe_float(row.get("Longitude", 0)),
+            "enrollment": safe_int(row.get("Enrollment", 0)),
+            "urban_rural": str(row.get("Urban/Rural", "Urban")),
+            "head_name": str(row.get("School Head Name", "")),
+            "head_email": str(row.get("School Head Email", "")),
             "dimension_scores": dimension_scores,
             "overall_index": sum(dimension_scores) / 6
         }
