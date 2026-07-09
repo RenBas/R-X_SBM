@@ -482,6 +482,10 @@ def process_uploaded_excel(uploaded_file):
         enrollment_raw = safe_int(row.get("Enrollment", 0))
         enrollment = enrollment_raw if enrollment_raw > 0 else 1
 
+        # ✅ Compute school's lowest dimension score and its index
+        lowest_school_dim_score = min(dimension_scores)
+        lowest_school_dim_index = dimension_scores.index(lowest_school_dim_score)
+
         school = {
             "id": safe_str(row.get("School ID", idx)),
             "name": safe_str(row.get("School Name", f"School {idx}")),
@@ -496,7 +500,9 @@ def process_uploaded_excel(uploaded_file):
             "head_name": safe_str(row.get("School Head Name", "")),
             "head_email": safe_str(row.get("School Head Email", "")),
             "dimension_scores": dimension_scores,
-            "overall_index": sum(dimension_scores) / 6
+            "overall_index": sum(dimension_scores) / 6,
+            "lowest_dim_score": lowest_school_dim_score,        # needed by map popup
+            "lowest_dim_index": lowest_school_dim_index         # needed by map popup
         }
         schools.append(school)
 
@@ -530,7 +536,7 @@ def process_uploaded_excel(uploaded_file):
         lowest_dim_score = min(dim_scores) if any(dim_scores) else 0.0
         overall_index = round(sum(dim_scores) / 6, 1) if any(dim_scores) else 0.0
 
-        # ➕ NEW: compute the name of the dimension with the lowest score
+        # Compute name of the dimension with the lowest score
         lowest_dim_idx = dim_scores.index(min(dim_scores))
         lowest_dim_name = DIMENSION_NAMES[lowest_dim_idx]
 
@@ -542,7 +548,7 @@ def process_uploaded_excel(uploaded_file):
             "lng": lng,
             "dimension_scores": dim_scores,
             "lowest_dim_score": lowest_dim_score,
-            "lowest_dim_name": lowest_dim_name,   # <-- required by map popup
+            "lowest_dim_name": lowest_dim_name,
             "overall_index": overall_index
         })
 
