@@ -378,7 +378,7 @@ with st.sidebar:
     if reset_clicked:
         reset_app()
 
-    with st.expander("🔍 Debug Data Info", expanded=True):  # expanded by default
+    with st.expander("🔍 Debug Data Info", expanded=True):
         st.write(f"**Data Source:** {'Uploaded' if st.session_state.uploaded_sdo_list is not None else 'Empty'}")
         st.write(f"**Total SDOs:** {len(sdo_list)}")
         st.write(f"**Total Schools:** {len(schools)}")
@@ -436,23 +436,16 @@ def process_uploaded_excel(uploaded_file):
     Read the single-sheet Excel template.
     Expects columns with prefixes: CT_, LE_, LG_, AC_, HR_, FR_
     """
-    # Read the first sheet
     df = pd.read_excel(uploaded_file, sheet_name=0)
     debug = {}
     debug["columns_detected"] = df.columns.tolist()
     debug["num_rows"] = len(df)
 
-    # ── Define the six dimension prefixes ──
     prefix_map = {
-        "CT_": 0,   # Curriculum & Teaching
-        "LE_": 1,   # Learning Environment
-        "LG_": 2,   # Leadership and Governance
-        "AC_": 3,   # Accountability and Continuous Improvement
-        "HR_": 4,   # HR & Team Development
-        "FR_": 5    # Finance & Resource Management
+        "CT_": 0, "LE_": 1, "LG_": 2,
+        "AC_": 3, "HR_": 4, "FR_": 5
     }
 
-    # ── Identify which columns belong to each dimension ──
     dim_columns = {idx: [] for idx in range(6)}
     for col in df.columns:
         for prefix, idx in prefix_map.items():
@@ -462,46 +455,43 @@ def process_uploaded_excel(uploaded_file):
 
     debug["dimension_column_counts"] = {DIMENSION_NAMES[i]: len(dim_columns[i]) for i in range(6)}
 
-    # ── Build schools list (with safe NaN handling) ──
+    # ── Helper functions ──
+    def safe_float(val):
+        v = pd.to_numeric(val, errors='coerce')
+        return 0.0 if pd.isna(v) else float(v)
+
+    def safe_int(val):
+        v = pd.to_numeric(val, errors='coerce')
+        return 0 if pd.isna(v) else int(v)
+
+    def safe_str(val):
+        if pd.isna(val):
+            return ""
+        return str(val)
+
     schools = []
     for idx, row in df.iterrows():
-        # Convert dimension scores safely
-        dimension_scores = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        dimension_scores = [0.0] * 6
         for dim_idx in range(6):
             cols = dim_columns[dim_idx]
             if cols:
                 vals = pd.to_numeric(row[cols], errors="coerce").dropna()
-                if not vals.empty:
-                    dimension_scores[dim_idx] = vals.mean()
-                else:
-                    dimension_scores[dim_idx] = 0.0
-            else:
-                dimension_scores[dim_idx] = 0.0
+                dimension_scores[dim_idx] = vals.mean() if not vals.empty else 0.0
 
-        # Safe conversion of metadata
-        def safe_float(val):
-            v = pd.to_numeric(val, errors='coerce')
-            return 0.0 if pd.isna(v) else float(v)
-
-        def safe_int(val):
-            v = pd.to_numeric(val, errors='coerce')
-            return 0 if pd.isna(v) else int(v)
-
-        def safe_str(val):
-            if pd.isna(val):
-                return ""
-            return str(val)
+        # ── ENROLLMENT FIX: ensure a minimum value of 1 so the dot is always visible ──
+        enrollment_raw = safe_int(row.get("Enrollment", 0))
+        enrollment = enrollment_raw if enrollment_raw > 0 else 1
 
         school = {
             "id": safe_str(row.get("School ID", idx)),
             "name": safe_str(row.get("School Name", f"School {idx}")),
-            "type": safe_str(row.get("School Type", row.get("Offering", ""))),  # fallback to Offering
+            "type": safe_str(row.get("School Type", row.get("Offering", ""))),
             "degree": safe_str(row.get("School Type", row.get("Offering", ""))),
             "sdo_id": safe_str(row.get("Division", "")),
             "data_status": safe_str(row.get("Data Status", "Complete")),
             "lat": safe_float(row.get("Latitude", 0)),
             "lng": safe_float(row.get("Longitude", 0)),
-            "enrollment": safe_int(row.get("Enrollment", 0)),
+            "enrollment": enrollment,   # <-- guaranteed ≥ 1
             "urban_rural": safe_str(row.get("Urban/Rural", "Urban")),
             "head_name": safe_str(row.get("School Head Name", "")),
             "head_email": safe_str(row.get("School Head Email", "")),
@@ -520,31 +510,24 @@ def process_uploaded_excel(uploaded_file):
     for sdo_name in sdo_names:
         div_schools = [s for s in schools if s["sdo_id"] == sdo_name]
 
-        # Pick the first school with valid coordinates (non-zero lat/lng) for the SDO location
-        # Fallback to the first school if none have real coordinates
+        # Pick first school with non-zero coordinates as SDO location
         lat, lng = 0.0, 0.0
         for s in div_schools:
             if s["lat"] != 0.0 or s["lng"] != 0.0:
-                lat = s["lat"]
-                lng = s["lng"]
+                lat, lng = s["lat"], s["lng"]
                 break
         if lat == 0.0 and lng == 0.0 and div_schools:
-            # still 0, use first school anyway (will be 0,0)
-            lat = div_schools[0]["lat"]
-            lng = div_schools[0]["lng"]
+            lat, lng = div_schools[0]["lat"], div_schools[0]["lng"]   # remains (0,0) if all zero
 
-        complete_div_schools = [s for s in div_schools if s["data_status"] != "Pending"]
-        if complete_div_schools:
-            dim_scores = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        complete_div = [s for s in div_schools if s["data_status"] != "Pending"]
+        dim_scores = [0.0] * 6
+        if complete_div:
             for d in range(6):
-                vals = [s["dimension_scores"][d] for s in complete_div_schools if s["dimension_scores"][d] > 0]
+                vals = [s["dimension_scores"][d] for s in complete_div if s["dimension_scores"][d] > 0]
                 if vals:
                     dim_scores[d] = sum(vals) / len(vals)
-        else:
-            dim_scores = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
         lowest_dim_score = min(dim_scores) if any(dim_scores) else 0.0
-        # ✅ ADDED: compute overall_index for the SDO
         overall_index = round(sum(dim_scores) / 6, 1) if any(dim_scores) else 0.0
 
         sdo_list.append({
@@ -555,7 +538,7 @@ def process_uploaded_excel(uploaded_file):
             "lng": lng,
             "dimension_scores": dim_scores,
             "lowest_dim_score": lowest_dim_score,
-            "overall_index": overall_index   # <-- this was missing
+            "overall_index": overall_index
         })
 
     debug["sample_sdo_scores"] = sdo_list[0]["dimension_scores"] if sdo_list else None
@@ -569,7 +552,6 @@ if run_clicked and uploaded_file is not None:
     with st.spinner("⏳ Processing uploaded data..."):
         try:
             new_sdo_list, new_schools, debug_info = process_uploaded_excel(uploaded_file)
-            # Store in session state
             st.session_state.uploaded_sdo_list = new_sdo_list
             st.session_state.uploaded_schools = new_schools
             st.session_state.debug_info = debug_info
@@ -588,7 +570,6 @@ if run_clicked and uploaded_file is None:
 # ────────────────────────────────────────────────────────────────
 
 if not sdo_list or not schools:
-    # Show debug info on the page to help diagnose
     st.error("📭 No data loaded. The file was processed but no schools or divisions were created.")
     if st.session_state.debug_info:
         st.write("**Debug Information from last processing:**")
@@ -600,15 +581,25 @@ if selected_sdo_id is None:
     st.warning("No division selected. Please select a division from the sidebar.")
     st.stop()
 
-if selected_sdo is not None:
-    if "capital" not in selected_sdo or pd.isna(selected_sdo.get("capital")):
-        selected_sdo["capital"] = ""
-    if "name" in selected_sdo:
-        selected_sdo["name"] = str(selected_sdo["name"])
-
 # ─── DIVISION HEADER ───
 st.markdown(f"## 🎓 SBM Dashboard: {selected_sdo['name']}")
 st.caption(f"Capital: {selected_sdo.get('capital', '')} · {selected_sdo.get('id', '')} schools")
+
+# ─── Helper to render map safely ───
+def render_map(selected_sdo, filtered_sdos, schools_in_sdo):
+    """Render the map only if the SDO has valid coordinates."""
+    lat = selected_sdo.get("lat", 0)
+    lng = selected_sdo.get("lng", 0)
+    if lat == 0.0 and lng == 0.0:
+        st.warning("📍 Map unavailable – no geographic coordinates (Latitude/Longitude) provided for this division.")
+        return
+    map_center = [lat, lng]
+    m = folium.Map(location=map_center, zoom_start=8, tiles="OpenStreetMap")
+    for sdo in filtered_sdos:
+        add_sdo_shield(m, sdo)
+    for school in schools_in_sdo:
+        add_school_dot(m, school)
+    st_folium(m, width=None, height=500, key="sbm_map")
 
 # ─── TABS ───
 if role == "regional":
@@ -628,34 +619,16 @@ if role == "regional":
             st.metric("⬇️ Lowest Dimension (Urgent)", DIMENSION_NAMES[min_dim_idx] if overall_avg > 0 else "—", delta_color="inverse")
 
         synopsis_html = generate_synopsis(
-            user_role=role,
-            user_name=user_name,
-            selected_sdo=selected_sdo,
-            schools_in_sdo=schools_in_sdo,
-            complete_schools=complete_schools,
-            dim_avgs=dim_avgs,
-            overall_avg=overall_avg,
-            max_dim_idx=max_dim_idx,
-            min_dim_idx=min_dim_idx
+            user_role=role, user_name=user_name, selected_sdo=selected_sdo,
+            schools_in_sdo=schools_in_sdo, complete_schools=complete_schools,
+            dim_avgs=dim_avgs, overall_avg=overall_avg,
+            max_dim_idx=max_dim_idx, min_dim_idx=min_dim_idx
         )
-        wrapped_html = f"""
-        <div style="width:100%;padding:0;margin:0;box-sizing:border-box;">
-            {synopsis_html}
-        </div>
-        """
+        wrapped_html = f"""<div style="width:100%;padding:0;margin:0;box-sizing:border-box;">{synopsis_html}</div>"""
         st_html(wrapped_html, height=900, scrolling=True)
 
         st.markdown("---")
-        try:
-            map_center = [selected_sdo["lat"], selected_sdo["lng"]]
-            m = folium.Map(location=map_center, zoom_start=8, tiles="OpenStreetMap")
-            for sdo in filtered_sdos:
-                add_sdo_shield(m, sdo)
-            for school in schools_in_sdo:
-                add_school_dot(m, school)
-            st_folium(m, width=None, height=500, key="sbm_map")
-        except Exception as e:
-            st.error(f"Map rendering failed: {e}")
+        render_map(selected_sdo, filtered_sdos, schools_in_sdo)
 
         st.markdown("---")
         st.markdown("""
@@ -795,34 +768,16 @@ elif role == "division":
             st.metric("⬇️ Lowest Dimension (Urgent)", DIMENSION_NAMES[min_dim_idx] if overall_avg > 0 else "—", delta_color="inverse")
 
         synopsis_html = generate_synopsis(
-            user_role=role,
-            user_name=user_name,
-            selected_sdo=selected_sdo,
-            schools_in_sdo=schools_in_sdo,
-            complete_schools=complete_schools,
-            dim_avgs=dim_avgs,
-            overall_avg=overall_avg,
-            max_dim_idx=max_dim_idx,
-            min_dim_idx=min_dim_idx
+            user_role=role, user_name=user_name, selected_sdo=selected_sdo,
+            schools_in_sdo=schools_in_sdo, complete_schools=complete_schools,
+            dim_avgs=dim_avgs, overall_avg=overall_avg,
+            max_dim_idx=max_dim_idx, min_dim_idx=min_dim_idx
         )
-        wrapped_html = f"""
-        <div style="width:100%;padding:0;margin:0;box-sizing:border-box;">
-            {synopsis_html}
-        </div>
-        """
+        wrapped_html = f"""<div style="width:100%;padding:0;margin:0;box-sizing:border-box;">{synopsis_html}</div>"""
         st_html(wrapped_html, height=900, scrolling=True)
 
         st.markdown("---")
-        try:
-            map_center = [selected_sdo["lat"], selected_sdo["lng"]]
-            m = folium.Map(location=map_center, zoom_start=8, tiles="OpenStreetMap")
-            for sdo in filtered_sdos:
-                add_sdo_shield(m, sdo)
-            for school in schools_in_sdo:
-                add_school_dot(m, school)
-            st_folium(m, width=None, height=500, key="sbm_map")
-        except Exception as e:
-            st.error(f"Map rendering failed: {e}")
+        render_map(selected_sdo, filtered_sdos, schools_in_sdo)
 
         st.markdown("---")
         st.markdown("""
