@@ -439,7 +439,8 @@ def process_uploaded_excel(uploaded_file):
             "id": school_id,
             "name": row["School Name"],
             "type": row["School Type"],
-            "sdo_id": row["Division"],  # Using Division name as SDO id for simplicity
+            "degree": row["School Type"],   # <-- ADD THIS LINE
+            "sdo_id": row["Division"],      # Division name as SDO id
             "data_status": row["Data Status"],
             "lat": row["Latitude"],
             "lng": row["Longitude"],
@@ -451,6 +452,9 @@ def process_uploaded_excel(uploaded_file):
             "overall_index": 0.0
         }
     
+    # (rest remains the same – compute dimension scores, etc.)
+    ...
+    return sdo_list, schools    
     # Compute dimension scores per school
     # Group by School ID and Dimension, then average Score
     dim_avg_df = df_assessment.groupby(["School ID", "Dimension"])["Score"].mean().reset_index()
