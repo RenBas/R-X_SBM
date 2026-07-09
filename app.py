@@ -260,7 +260,7 @@ with st.sidebar:
     st.markdown(f"### 👤 {user_name}")
     st.caption(get_accessible_divisions_summary(user))
     st.markdown("---")
-    
+
     if st.session_state.uploaded_sdo_list is not None:
         st.info("📌 **Using Uploaded Data**")
         if st.button("🔄 Reset to Empty Slate", use_container_width=True, key="reset_to_empty_slate"):
@@ -269,7 +269,7 @@ with st.sidebar:
         st.warning("📌 **No data loaded.** Please upload SBM data and click **Run Analysis**.")
         if st.button("🔄 Reset", use_container_width=True, key="reset_empty_state"):
             reset_app()
-    
+
     st.markdown("---")
     st.markdown("### 🎨 Appearance")
     col_light, col_dark = st.columns(2)
@@ -285,7 +285,7 @@ with st.sidebar:
                      key="dark_theme"):
             st.session_state.custom_theme = "dark"
             st.rerun()
-    
+
     st.markdown("---")
     st.markdown("### 🗺️ Navigation")
     if sdo_list and selected_sdo:
@@ -314,15 +314,15 @@ with st.sidebar:
                 st.caption(f"🏫 {school.get('name', '')}")
     else:
         st.caption("📭 No data loaded – please upload.")
-    
+
     st.markdown("---")
     st.markdown("### 📐 Filter by Dimension")
     selected_dimension = st.selectbox("Highlight Dimension", options=["Overall"] + DIMENSION_NAMES, index=0, key="dimension_filter")
-    
+
     st.markdown("---")
     st.markdown("### 🔍 Search School")
     search_query = st.text_input("Type school name or ID", placeholder="e.g., Central", key="search_school")
-    
+
     st.markdown("---")
     st.markdown("### 📊 Data Management")
     if selected_sdo and selected_sdo_id is not None and schools_in_sdo:
@@ -341,7 +341,7 @@ with st.sidebar:
             st.caption("No data to report.")
     else:
         st.caption("No data loaded.")
-    
+
     template_file = generate_excel_template()
     st.download_button(
         label="📋 Download Data Collection Template (Excel)",
@@ -352,11 +352,11 @@ with st.sidebar:
         key="download_template"
     )
     st.caption("Template based on DepEd Order No. 007, s. 2024")
-    
+
     st.markdown("---")
     st.markdown("### 📤 Upload SBM Data")
     st.caption("Upload a completed Excel template to replace the current data.")
-    
+
     uploaded_file = st.file_uploader(
         "Choose an Excel file (.xlsx)",
         type=["xlsx"],
@@ -367,17 +367,17 @@ with st.sidebar:
         st.success("✅ File uploaded. Click **Run Analysis** to process.")
     else:
         st.session_state.uploaded_file = None
-    
+
     st.markdown("---")
     col_run, col_reset = st.columns(2)
     with col_run:
         run_clicked = st.button("🚀 Run Analysis", type="primary", use_container_width=True, disabled=uploaded_file is None, key="run_analysis")
     with col_reset:
         reset_clicked = st.button("🔄 Reset", use_container_width=True, key="reset_main")
-    
+
     if reset_clicked:
         reset_app()
-    
+
     with st.expander("🔍 Debug Data Info", expanded=True):  # expanded by default
         st.write(f"**Data Source:** {'Uploaded' if st.session_state.uploaded_sdo_list is not None else 'Empty'}")
         st.write(f"**Total SDOs:** {len(sdo_list)}")
@@ -393,11 +393,11 @@ with st.sidebar:
         if st.session_state.debug_info:
             st.write("**Debug Info from last processing:**")
             st.json(st.session_state.debug_info)
-    
+
     st.markdown("---")
     if st.button("🚪 Logout", use_container_width=True, key="logout_button"):
         logout()
-    
+
     with st.expander("📖 Glossary", expanded=False):
         st.markdown("""
         **SBM (School-Based Management)** – Decentralisation of decision-making authority to schools.
@@ -422,7 +422,7 @@ with st.sidebar:
         - 🟡 Yellow = Monitor (2.0–2.4)
         - ⚪ No glow = Stable (≥ 2.5)
         """)
-    
+
     st.markdown("---")
     st.caption("SBM Digital Twin · Prototype v1.0")
     st.caption("DepEd Region X – Northern Mindanao")
@@ -519,8 +519,19 @@ def process_uploaded_excel(uploaded_file):
     sdo_list = []
     for sdo_name in sdo_names:
         div_schools = [s for s in schools if s["sdo_id"] == sdo_name]
-        lat = div_schools[0]["lat"] if div_schools else 0.0
-        lng = div_schools[0]["lng"] if div_schools else 0.0
+
+        # Pick the first school with valid coordinates (non-zero lat/lng) for the SDO location
+        # Fallback to the first school if none have real coordinates
+        lat, lng = 0.0, 0.0
+        for s in div_schools:
+            if s["lat"] != 0.0 or s["lng"] != 0.0:
+                lat = s["lat"]
+                lng = s["lng"]
+                break
+        if lat == 0.0 and lng == 0.0 and div_schools:
+            # still 0, use first school anyway (will be 0,0)
+            lat = div_schools[0]["lat"]
+            lng = div_schools[0]["lng"]
 
         complete_div_schools = [s for s in div_schools if s["data_status"] != "Pending"]
         if complete_div_schools:
@@ -533,6 +544,8 @@ def process_uploaded_excel(uploaded_file):
             dim_scores = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
         lowest_dim_score = min(dim_scores) if any(dim_scores) else 0.0
+        # ✅ ADDED: compute overall_index for the SDO
+        overall_index = round(sum(dim_scores) / 6, 1) if any(dim_scores) else 0.0
 
         sdo_list.append({
             "id": sdo_name,
@@ -541,7 +554,8 @@ def process_uploaded_excel(uploaded_file):
             "lat": lat,
             "lng": lng,
             "dimension_scores": dim_scores,
-            "lowest_dim_score": lowest_dim_score
+            "lowest_dim_score": lowest_dim_score,
+            "overall_index": overall_index   # <-- this was missing
         })
 
     debug["sample_sdo_scores"] = sdo_list[0]["dimension_scores"] if sdo_list else None
@@ -599,12 +613,12 @@ st.caption(f"Capital: {selected_sdo.get('capital', '')} · {selected_sdo.get('id
 # ─── TABS ───
 if role == "regional":
     tab1, tab2, tab3 = st.tabs(["📋 Executive Summary", "📊 Division Performance Matrix", "🧪 Digital Twin Sandbox"])
-    
+
     with tab1:
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("🏫 Total Schools", len(schools_in_sdo), 
-                      delta=f"{len([s for s in schools_in_sdo if s.get('data_status')=='Pending'])} pending" 
+            st.metric("🏫 Total Schools", len(schools_in_sdo),
+                      delta=f"{len([s for s in schools_in_sdo if s.get('data_status')=='Pending'])} pending"
                       if any(s.get('data_status')=='Pending' for s in schools_in_sdo) else None)
         with col2:
             st.metric("📊 Overall SBM Index", f"{overall_avg:.1f} / 3.0" if overall_avg > 0 else "—")
@@ -612,7 +626,7 @@ if role == "regional":
             st.metric("⬆️ Highest Dimension", DIMENSION_NAMES[max_dim_idx] if overall_avg > 0 else "—")
         with col4:
             st.metric("⬇️ Lowest Dimension (Urgent)", DIMENSION_NAMES[min_dim_idx] if overall_avg > 0 else "—", delta_color="inverse")
-        
+
         synopsis_html = generate_synopsis(
             user_role=role,
             user_name=user_name,
@@ -630,7 +644,7 @@ if role == "regional":
         </div>
         """
         st_html(wrapped_html, height=900, scrolling=True)
-        
+
         st.markdown("---")
         try:
             map_center = [selected_sdo["lat"], selected_sdo["lng"]]
@@ -642,7 +656,7 @@ if role == "regional":
             st_folium(m, width=None, height=500, key="sbm_map")
         except Exception as e:
             st.error(f"Map rendering failed: {e}")
-        
+
         st.markdown("---")
         st.markdown("""
         <div class="custom-footnote" style="padding:14px 18px;border-radius:8px;margin-bottom:14px;">
@@ -664,7 +678,7 @@ if role == "regional":
         </div>
         """, unsafe_allow_html=True)
         st.caption("💡 Click on any SDO shield to zoom in and view its schools. Hover over markers for more details.")
-        
+
         st.markdown("---")
         btab1, btab2, btab3 = st.tabs(["📋 Indicators", "📊 Radar Chart", "📈 Historical Trend"])
         with btab1:
@@ -696,7 +710,7 @@ if role == "regional":
                 st.plotly_chart(fig, width='stretch')
             else:
                 st.info("No historical data available for this division.")
-    
+
     with tab2:
         st.markdown("### 📊 Division Performance Matrix")
         st.caption("Performance of all divisions across the 6 SBM dimensions. Scores are rounded to 1 decimal place.")
@@ -718,13 +732,13 @@ if role == "regional":
         for dim in df.columns[1:]:
             avg_row[dim] = round(df[dim].mean(), 1)
         df = pd.concat([df, pd.DataFrame([avg_row])], ignore_index=True)
-        
+
         def color_cell(val):
             if pd.isna(val): return ''
             if val >= 2.5: return 'background-color: #22c55e; color: white; font-weight: bold;'
             elif val >= 2.0: return 'background-color: #eab308; color: white; font-weight: bold;'
             else: return 'background-color: #dc2626; color: white; font-weight: bold;'
-        
+
         styled_df = df.style.map(color_cell, subset=df.columns[1:]).format("{:.1f}", subset=df.columns[1:])
         st.markdown(styled_df.to_html(index=False, escape=False), unsafe_allow_html=True)
         st.markdown("""
@@ -734,7 +748,7 @@ if role == "regional":
             <span>🔴 <b>Weak</b> (< 2.0)</span>
         </div>
         """, unsafe_allow_html=True)
-        
+
         st.markdown("### 📈 Summary Statistics")
         summary_data = []
         for dim in DIMENSION_NAMES:
@@ -750,7 +764,7 @@ if role == "regional":
             })
         summary_df = pd.DataFrame(summary_data)
         st.dataframe(summary_df, width='stretch', hide_index=True)
-        
+
         st.markdown("### 🔍 Jump to Division")
         col_sel, col_btn = st.columns([3, 1])
         with col_sel:
@@ -760,18 +774,18 @@ if role == "regional":
             if st.button("🚀 Go to Division", use_container_width=True, key="go_division_button"):
                 st.session_state.go_to_division = selected_div_name
                 st.rerun()
-    
+
     with tab3:
         render_sandbox(sdo_list, selected_sdo, schools_in_sdo, complete_schools, dim_avgs, overall_avg)
 
 elif role == "division":
     tab1, tab2, tab3 = st.tabs(["📋 Executive Summary", "📊 School Performance Dashboard", "🧪 Digital Twin Sandbox"])
-    
+
     with tab1:
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("🏫 Total Schools", len(schools_in_sdo), 
-                      delta=f"{len([s for s in schools_in_sdo if s.get('data_status')=='Pending'])} pending" 
+            st.metric("🏫 Total Schools", len(schools_in_sdo),
+                      delta=f"{len([s for s in schools_in_sdo if s.get('data_status')=='Pending'])} pending"
                       if any(s.get('data_status')=='Pending' for s in schools_in_sdo) else None)
         with col2:
             st.metric("📊 Overall SBM Index", f"{overall_avg:.1f} / 3.0" if overall_avg > 0 else "—")
@@ -779,7 +793,7 @@ elif role == "division":
             st.metric("⬆️ Highest Dimension", DIMENSION_NAMES[max_dim_idx] if overall_avg > 0 else "—")
         with col4:
             st.metric("⬇️ Lowest Dimension (Urgent)", DIMENSION_NAMES[min_dim_idx] if overall_avg > 0 else "—", delta_color="inverse")
-        
+
         synopsis_html = generate_synopsis(
             user_role=role,
             user_name=user_name,
@@ -797,7 +811,7 @@ elif role == "division":
         </div>
         """
         st_html(wrapped_html, height=900, scrolling=True)
-        
+
         st.markdown("---")
         try:
             map_center = [selected_sdo["lat"], selected_sdo["lng"]]
@@ -809,7 +823,7 @@ elif role == "division":
             st_folium(m, width=None, height=500, key="sbm_map")
         except Exception as e:
             st.error(f"Map rendering failed: {e}")
-        
+
         st.markdown("---")
         st.markdown("""
         <div class="custom-footnote" style="padding:14px 18px;border-radius:8px;margin-bottom:14px;">
@@ -822,7 +836,7 @@ elif role == "division":
         </div>
         """, unsafe_allow_html=True)
         st.caption("💡 Click on any SDO shield to zoom in and view its schools. Hover over markers for more details.")
-        
+
         st.markdown("---")
         btab1, btab2, btab3 = st.tabs(["📋 Indicators", "📊 Radar Chart", "📈 Historical Trend"])
         with btab1:
@@ -854,12 +868,12 @@ elif role == "division":
                 st.plotly_chart(fig, width='stretch')
             else:
                 st.info("No historical data available for this division.")
-    
+
     with tab2:
         st.markdown("### 📊 School Performance Dashboard")
         st.caption(f"Detailed school-level performance for {selected_sdo['name']}.")
         st.info("School Performance Dashboard – full code to be inserted here.")
-    
+
     with tab3:
         render_sandbox(sdo_list, selected_sdo, schools_in_sdo, complete_schools, dim_avgs, overall_avg)
 
