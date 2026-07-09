@@ -385,7 +385,6 @@ with st.sidebar:
         if sdo_list:
             sample_sdo = sdo_list[0]
             st.write(f"**Sample SDO Scores:** {sample_sdo.get('dimension_scores', [])}")
-        # Show debug info stored after processing
         if st.session_state.debug_info:
             st.write("**Debug Info from last processing:**")
             st.json(st.session_state.debug_info)
@@ -424,93 +423,89 @@ with st.sidebar:
     st.caption("DepEd Region X – Northern Mindanao")
 
 # ────────────────────────────────────────────────────────────────
-# 6. PROCESS UPLOAD (with UI debugging)
+# 6. PROCESS UPLOAD – SINGLE-SHEET TEMPLATE
 # ────────────────────────────────────────────────────────────────
 
 def process_uploaded_excel(uploaded_file):
     """
-    Read the uploaded Excel and build sdo_list and schools.
-    Returns data and a debug dictionary.
+    Read the single-sheet Excel template.
+    Expects columns with prefixes: CT_, LE_, LG_, AC_, HR_, FR_
     """
-    df_schools = pd.read_excel(uploaded_file, sheet_name="School Information")
-    df_assessment = pd.read_excel(uploaded_file, sheet_name="SBM Assessment")
+    # Read the first sheet (regardless of name)
+    df = pd.read_excel(uploaded_file, sheet_name=0)
     debug = {}
 
-    # Force Score to numeric
-    df_assessment["Score"] = pd.to_numeric(df_assessment["Score"], errors="coerce")
-    debug["score_dtype"] = str(df_assessment["Score"].dtype)
-    debug["num_schools"] = len(df_schools)
-    debug["num_assessment_rows"] = len(df_assessment)
+    # ── Debug: Show column names ──
+    debug["columns_detected"] = df.columns.tolist()
+    debug["num_rows"] = len(df)
 
-    # Detect unique dimensions
-    uploaded_dim_names = [d.strip() for d in df_assessment["Dimension"].unique().tolist()]
-    debug["detected_dimensions"] = uploaded_dim_names
+    # ── Define the six dimension prefixes ──
+    prefix_map = {
+        "CT_": 0,   # Curriculum & Teaching
+        "LE_": 1,   # Learning Environment
+        "LG_": 2,   # Leadership and Governance
+        "AC_": 3,   # Accountability and Continuous Improvement
+        "HR_": 4,   # HR & Team Development
+        "FR_": 5    # Finance & Resource Management
+    }
 
-    # Build mapping using substring matching
-    DIM_MAP = {}
-    for dim in uploaded_dim_names:
-        dim_lower = dim.lower()
-        if "leadership" in dim_lower:
-            DIM_MAP[dim] = 2
-        elif "curriculum" in dim_lower and "instruction" in dim_lower:
-            DIM_MAP[dim] = 0
-        elif "accountability" in dim_lower:
-            DIM_MAP[dim] = 3
-        elif "management" in dim_lower and "resource" in dim_lower:
-            DIM_MAP[dim] = 5
-        elif "learning" in dim_lower and "environment" in dim_lower:
-            DIM_MAP[dim] = 1
-        elif "hr" in dim_lower or "human" in dim_lower:
-            DIM_MAP[dim] = 4
-        else:
-            DIM_MAP[dim] = None
-    debug["mapping"] = DIM_MAP
+    # ── Identify which columns belong to each dimension ──
+    dim_columns = {idx: [] for idx in range(6)}
+    for col in df.columns:
+        for prefix, idx in prefix_map.items():
+            if col.startswith(prefix):
+                dim_columns[idx].append(col)
+                break
 
-    # Build schools
-    schools_dict = {}
-    for idx, row in df_schools.iterrows():
-        school_id = str(row["School ID"])
-        schools_dict[school_id] = {
-            "id": school_id,
-            "name": row["School Name"],
-            "type": row["School Type"],
-            "degree": row["School Type"],
-            "sdo_id": row["Division"],
-            "data_status": row["Data Status"],
-            "lat": row["Latitude"],
-            "lng": row["Longitude"],
-            "enrollment": row["Enrollment"],
-            "urban_rural": row["Urban/Rural"],
-            "head_name": row["School Head Name"],
-            "head_email": row["School Head Email"],
-            "dimension_scores": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            "overall_index": 0.0
+    debug["dimension_column_counts"] = {DIMENSION_NAMES[i]: len(dim_columns[i]) for i in range(6)}
+
+    # ── Build schools list ──
+    schools = []
+    for idx, row in df.iterrows():
+        # Get dimension scores by averaging all columns with that prefix
+        dimension_scores = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        for dim_idx in range(6):
+            cols = dim_columns[dim_idx]
+            if cols:
+                # Convert to numeric, coerce errors to NaN, then drop NaN before averaging
+                vals = pd.to_numeric(row[cols], errors="coerce").dropna()
+                if not vals.empty:
+                    dimension_scores[dim_idx] = vals.mean()
+                else:
+                    dimension_scores[dim_idx] = 0.0
+            else:
+                dimension_scores[dim_idx] = 0.0
+
+        # Handle missing metadata gracefully
+        school = {
+            "id": str(row.get("School ID", idx)),
+            "name": row.get("School Name", f"School {idx}"),
+            "type": row.get("School Type", ""),
+            "degree": row.get("School Type", ""),
+            "sdo_id": row.get("Division", ""),
+            "data_status": row.get("Data Status", "Complete"),
+            "lat": float(row.get("Latitude", 0)),
+            "lng": float(row.get("Longitude", 0)),
+            "enrollment": int(row.get("Enrollment", 0)),
+            "urban_rural": row.get("Urban/Rural", "Urban"),
+            "head_name": row.get("School Head Name", ""),
+            "head_email": row.get("School Head Email", ""),
+            "dimension_scores": dimension_scores,
+            "overall_index": sum(dimension_scores) / 6
         }
+        schools.append(school)
 
-    # Assign scores
-    dim_avg_df = df_assessment.groupby(["School ID", "Dimension"])["Score"].mean().reset_index()
-    for school_id, group in dim_avg_df.groupby("School ID"):
-        if school_id not in schools_dict:
-            continue
-        scores = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-        for _, row in group.iterrows():
-            dim_name = row["Dimension"].strip()
-            if dim_name in DIM_MAP and DIM_MAP[dim_name] is not None:
-                idx = DIM_MAP[dim_name]
-                scores[idx] = row["Score"]
-        schools_dict[school_id]["dimension_scores"] = scores
-        schools_dict[school_id]["overall_index"] = sum(scores) / 6
-
-    schools = list(schools_dict.values())
     debug["sample_school_scores"] = schools[0]["dimension_scores"] if schools else None
 
-    # Build SDO list
-    sdo_names = set(s["sdo_id"] for s in schools)
+    # ── Build SDO list ──
+    sdo_names = set(s["sdo_id"] for s in schools if s["sdo_id"])
     sdo_list = []
+
     for sdo_name in sdo_names:
         div_schools = [s for s in schools if s["sdo_id"] == sdo_name]
         lat = div_schools[0]["lat"] if div_schools else 0.0
         lng = div_schools[0]["lng"] if div_schools else 0.0
+
         complete_div_schools = [s for s in div_schools if s["data_status"] != "Pending"]
         if complete_div_schools:
             dim_scores = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -520,7 +515,9 @@ def process_uploaded_excel(uploaded_file):
                     dim_scores[d] = sum(vals) / len(vals)
         else:
             dim_scores = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
         lowest_dim_score = min(dim_scores) if any(dim_scores) else 0.0
+
         sdo_list.append({
             "id": sdo_name,
             "name": sdo_name,
@@ -530,7 +527,10 @@ def process_uploaded_excel(uploaded_file):
             "dimension_scores": dim_scores,
             "lowest_dim_score": lowest_dim_score
         })
+
     debug["sample_sdo_scores"] = sdo_list[0]["dimension_scores"] if sdo_list else None
+    debug["num_sdo"] = len(sdo_list)
+    debug["num_schools"] = len(schools)
 
     return sdo_list, schools, debug
 
