@@ -7,31 +7,30 @@ from typing import Dict, List, Optional, Tuple
 # Constants
 # ----------------------------------------------------------------------
 DIMENSION_NAMES = [
-    "Curriculum & Teaching",
+    "Leadership & Governance",
+    "Curriculum & Instruction",
     "Learning Environment",
-    "Leadership",
-    "Governance & Accountability",
-    "Human Resource & Team Dev.",
-    "Finance & Resource Mgmt."
+    "Accountability & Continuous Improvement",
+    "Management of Resources",
+    "Finance & Resource Management"
 ]
 
 # Map indicator prefixes to dimension names based on actual data file
 INDICATOR_PREFIX_TO_DIM = {
-    "CT": "Curriculum & Teaching",
+    "LG": "Leadership & Governance",
+    "CI": "Curriculum & Instruction",
     "LE": "Learning Environment",
-    "LG": "Leadership",
-    "AC": "Governance & Accountability",
-    "HR": "Human Resource & Team Dev.",
-    "FR": "Finance & Resource Mgmt."
+    "AC": "Accountability & Continuous Improvement",
+    "MR": "Management of Resources",
+    "FR": "Finance & Resource Management"
 }
 
 # Build INDICATOR_IDS dynamically from the pattern in the data
-# CT_1 to CT_8, LE_9 to LE_18, LG_19 to LG_22, AC_23 to AC_28, HR_29 to HR_35, FR_36 to FR_42
+# LG_Indicator1 to LG_Indicator5, CI_Indicator1 to CI_Indicator5, etc.
 INDICATOR_IDS = []
-for prefix, start_end in [("CT", (1, 8)), ("LE", (9, 18)), ("LG", (19, 22)), 
-                          ("AC", (23, 28)), ("HR", (29, 35)), ("FR", (36, 42))]:
-    for i in range(start_end[0], start_end[1] + 1):
-        INDICATOR_IDS.append(f"{prefix}_{i}")
+for prefix in ["LG", "CI", "LE", "AC", "MR", "FR"]:
+    for i in range(1, 6):
+        INDICATOR_IDS.append(f"{prefix}_Indicator{i}")
 
 # Map indicator to dimension
 INDICATOR_TO_DIM = {}
