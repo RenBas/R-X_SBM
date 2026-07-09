@@ -100,7 +100,7 @@ if "analysis_complete" not in st.session_state:
 if "uploaded_file" not in st.session_state:
     st.session_state.uploaded_file = None
 if "uploaded_sdo_list" not in st.session_state:
-    st.session_state.uploaded_sdo_list = None   # None means no data loaded
+    st.session_state.uploaded_sdo_list = None
 if "uploaded_schools" not in st.session_state:
     st.session_state.uploaded_schools = None
 
@@ -122,9 +122,7 @@ def reset_app():
 # 2. DATA LOADING – No default mock data; only uploaded data
 # ────────────────────────────────────────────────────────────────
 def get_active_data():
-    """
-    Returns (sdo_list, schools). If no uploaded data exists, returns empty lists.
-    """
+    """Returns (sdo_list, schools). If no uploaded data exists, returns empty lists."""
     if st.session_state.uploaded_sdo_list is not None and st.session_state.uploaded_schools is not None:
         return st.session_state.uploaded_sdo_list, st.session_state.uploaded_schools
     else:
@@ -143,7 +141,7 @@ else:
     regional_overall_avg = 0
 
 # ────────────────────────────────────────────────────────────────
-# 3. AUTHENTICATION (unchanged)
+# 3. AUTHENTICATION
 # ────────────────────────────────────────────────────────────────
 auth_status = login_status()
 if not auth_status["logged_in"]:
@@ -197,7 +195,6 @@ user_name = user.get("name", "User")
 # ────────────────────────────────────────────────────────────────
 # 4. ACCESSIBLE DATA (depends on sdo_list and schools)
 # ────────────────────────────────────────────────────────────────
-# If no data is loaded, filtered_sdos and filtered_schools are empty
 filtered_data = get_accessible_schools(user, sdo_list, schools)
 filtered_sdos = filtered_data.get("filtered_sdos", [])
 filtered_schools = filtered_data.get("filtered_schools", [])
@@ -235,7 +232,6 @@ if selected_sdo is None and sdo_list:
                 selected_sdo = filtered_sdos[0]
                 selected_sdo_id = selected_sdo["id"]
         else:
-            # If no filtered divisions, pick the first SDO from the full list
             selected_sdo = sdo_list[0] if sdo_list else None
             selected_sdo_id = selected_sdo["id"] if selected_sdo else None
 
@@ -258,7 +254,7 @@ else:
     min_dim_idx = 0
 
 # ────────────────────────────────────────────────────────────────
-# 6. SIDEBAR
+# 6. SIDEBAR (with unique button keys)
 # ────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown(f"### 👤 {user_name}")
@@ -268,11 +264,11 @@ with st.sidebar:
     # Data Source Indicator
     if st.session_state.uploaded_sdo_list is not None:
         st.info("📌 **Using Uploaded Data**")
-        if st.button("🔄 Reset to Empty Slate", use_container_width=True):
+        if st.button("🔄 Reset to Empty Slate", use_container_width=True, key="reset_to_empty_slate"):
             reset_app()
     else:
         st.warning("📌 **No data loaded.** Please upload SBM data and click **Run Analysis**.")
-        if st.button("🔄 Reset", use_container_width=True):
+        if st.button("🔄 Reset", use_container_width=True, key="reset_empty_state"):
             reset_app()
     
     st.markdown("---")
@@ -280,12 +276,14 @@ with st.sidebar:
     col_light, col_dark = st.columns(2)
     with col_light:
         if st.button("☀️ Light", use_container_width=True,
-                     type="primary" if st.session_state.custom_theme == "light" else "secondary"):
+                     type="primary" if st.session_state.custom_theme == "light" else "secondary",
+                     key="light_theme"):
             st.session_state.custom_theme = "light"
             st.rerun()
     with col_dark:
         if st.button("🌙 Dark", use_container_width=True,
-                     type="primary" if st.session_state.custom_theme == "dark" else "secondary"):
+                     type="primary" if st.session_state.custom_theme == "dark" else "secondary",
+                     key="dark_theme"):
             st.session_state.custom_theme = "dark"
             st.rerun()
     
@@ -297,7 +295,7 @@ with st.sidebar:
             if len(sdo_names) == 1:
                 st.caption(f"📋 {selected_sdo['name']}")
             else:
-                selected_sdo_name = st.selectbox("Select Division", options=sdo_names, index=0)
+                selected_sdo_name = st.selectbox("Select Division", options=sdo_names, index=0, key="sidebar_division_select")
                 # Update selected SDO and recompute data
                 selected_sdo = next((s for s in sdo_list if s["name"] == selected_sdo_name), selected_sdo)
                 selected_sdo_id = selected_sdo["id"] if selected_sdo else None
@@ -321,11 +319,11 @@ with st.sidebar:
     
     st.markdown("---")
     st.markdown("### 📐 Filter by Dimension")
-    selected_dimension = st.selectbox("Highlight Dimension", options=["Overall"] + DIMENSION_NAMES, index=0)
+    selected_dimension = st.selectbox("Highlight Dimension", options=["Overall"] + DIMENSION_NAMES, index=0, key="dimension_filter")
     
     st.markdown("---")
     st.markdown("### 🔍 Search School")
-    search_query = st.text_input("Type school name or ID", placeholder="e.g., Central")
+    search_query = st.text_input("Type school name or ID", placeholder="e.g., Central", key="search_school")
     
     st.markdown("---")
     st.markdown("### 📊 Data Management")
@@ -338,7 +336,8 @@ with st.sidebar:
                 data=csv_report,
                 file_name=f"SBM_Report_{selected_sdo['name'].replace(' ', '_')}.csv",
                 mime="text/csv",
-                use_container_width=True
+                use_container_width=True,
+                key="download_report"
             )
         else:
             st.caption("No data to report.")
@@ -352,7 +351,8 @@ with st.sidebar:
         data=template_file,
         file_name="SBM_Data_Collection_Template.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True
+        use_container_width=True,
+        key="download_template"
     )
     st.caption("Template based on DepEd Order No. 007, s. 2024")
     
@@ -374,9 +374,9 @@ with st.sidebar:
     st.markdown("---")
     col_run, col_reset = st.columns(2)
     with col_run:
-        run_clicked = st.button("🚀 Run Analysis", type="primary", use_container_width=True, disabled=uploaded_file is None)
+        run_clicked = st.button("🚀 Run Analysis", type="primary", use_container_width=True, disabled=uploaded_file is None, key="run_analysis")
     with col_reset:
-        reset_clicked = st.button("🔄 Reset", use_container_width=True)
+        reset_clicked = st.button("🔄 Reset", use_container_width=True, key="reset_main")
     
     if reset_clicked:
         reset_app()
@@ -396,7 +396,7 @@ with st.sidebar:
             st.write(f"**Sample SDO Scores:** {sample_sdo.get('dimension_scores', [])}")
     
     st.markdown("---")
-    if st.button("🚪 Logout", use_container_width=True):
+    if st.button("🚪 Logout", use_container_width=True, key="logout_button"):
         logout()
     
     with st.expander("📖 Glossary", expanded=False):
@@ -709,9 +709,9 @@ if role == "regional":
         col_sel, col_btn = st.columns([3, 1])
         with col_sel:
             division_names = [sdo["name"] for sdo in sdo_list]
-            selected_div_name = st.selectbox("Select a division to view its detailed dashboard:", division_names)
+            selected_div_name = st.selectbox("Select a division to view its detailed dashboard:", division_names, key="jump_division")
         with col_btn:
-            if st.button("🚀 Go to Division", use_container_width=True):
+            if st.button("🚀 Go to Division", use_container_width=True, key="go_division_button"):
                 st.session_state.go_to_division = selected_div_name
                 st.rerun()
     
@@ -722,7 +722,7 @@ elif role == "division":
     tab1, tab2, tab3 = st.tabs(["📋 Executive Summary", "📊 School Performance Dashboard", "🧪 Digital Twin Sandbox"])
     
     with tab1:
-        # KPI cards (same as above, omitted for brevity – but you can copy from the regional tab1)
+        # KPI cards
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.metric("🏫 Total Schools", len(schools_in_sdo), 
@@ -765,7 +765,6 @@ elif role == "division":
         except Exception as e:
             st.error(f"Map rendering failed: {e}")
         
-        # (Map legend and bottom tabs similar to regional tab1)
         st.markdown("---")
         st.markdown("""
         <div class="custom-footnote" style="padding:14px 18px;border-radius:8px;margin-bottom:14px;">
@@ -812,17 +811,17 @@ elif role == "division":
                 st.info("No historical data available for this division.")
     
     with tab2:
-        # School Performance Dashboard – you can reuse your existing code here
+        # School Performance Dashboard
         st.markdown("### 📊 School Performance Dashboard")
         st.caption(f"Detailed school-level performance for {selected_sdo['name']}.")
-        # (All the charts and tables from your original division tab2 – please copy them here)
+        # (Place your existing division tab2 code here – omitted for brevity, but you can copy from earlier versions)
+        st.info("School Performance Dashboard – full code to be inserted here.")
     
     with tab3:
         render_sandbox(sdo_list, selected_sdo, schools_in_sdo, complete_schools, dim_avgs, overall_avg)
 
 else:
     # School Head View
-    # (same as before but with no tabs – you can reuse your existing code)
     st.info("School head view – detailed dashboard coming soon.")
 
 # ─── SEARCH RESULTS ───
