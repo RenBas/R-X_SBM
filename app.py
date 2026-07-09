@@ -437,10 +437,13 @@ def process_uploaded_excel(uploaded_file):
     Read the uploaded Excel and build the sdo_list and schools list
     exactly as the dashboard expects.
     """
+    # Read sheets
     df_schools = pd.read_excel(uploaded_file, sheet_name="School Information")
     df_assessment = pd.read_excel(uploaded_file, sheet_name="SBM Assessment")
-    
-    # Build school list
+
+    # --------------------------------------------------------------
+    # 1. Build school list
+    # --------------------------------------------------------------
     schools_dict = {}
     for idx, row in df_schools.iterrows():
         school_id = str(row["School ID"])
@@ -448,8 +451,8 @@ def process_uploaded_excel(uploaded_file):
             "id": school_id,
             "name": row["School Name"],
             "type": row["School Type"],
-            "degree": row["School Type"],
-            "sdo_id": row["Division"],
+            "degree": row["School Type"],          # required for report
+            "sdo_id": row["Division"],            # Division name as ID
             "data_status": row["Data Status"],
             "lat": row["Latitude"],
             "lng": row["Longitude"],
@@ -460,7 +463,74 @@ def process_uploaded_excel(uploaded_file):
             "dimension_scores": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
             "overall_index": 0.0
         }
-    
+
+    # --------------------------------------------------------------
+    # 2. Compute per‑school dimension scores from assessment data
+    # --------------------------------------------------------------
+    dim_avg_df = df_assessment.groupby(["School ID", "Dimension"])["Score"].mean().reset_index()
+    dim_map = {name: i for i, name in enumerate(DIMENSION_NAMES)}
+
+    for school_id, group in dim_avg_df.groupby("School ID"):
+        if school_id not in schools_dict:
+            continue
+        scores = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        for _, row in group.iterrows():
+            dim = row["Dimension"]
+            if dim in dim_map:
+                scores[dim_map[dim]] = row["Score"]
+        schools_dict[school_id]["dimension_scores"] = scores
+        schools_dict[school_id]["overall_index"] = sum(scores) / 6 if any(scores) else 0.0
+
+    schools = list(schools_dict.values())
+
+    # --------------------------------------------------------------
+    # 3. Build SDO list (one per unique Division)
+    # --------------------------------------------------------------
+    sdo_names = set(s["sdo_id"] for s in schools)
+    sdo_list = []
+
+    for sdo_name in sdo_names:
+        # Get all schools in this division
+        div_schools = [s for s in schools if s["sdo_id"] == sdo_name]
+        # Lat/lng from first school (or fallback)
+        if div_schools:
+            lat = div_schools[0]["lat"]
+            lng = div_schools[0]["lng"]
+        else:
+            lat, lng = 0.0, 0.0
+
+        # Compute dimension averages for this division (using all non‑pending schools)
+        complete_div_schools = [s for s in div_schools if s["data_status"] != "Pending"]
+        if complete_div_schools:
+            dim_scores = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            for d in range(6):
+                vals = [s["dimension_scores"][d] for s in complete_div_schools if s["dimension_scores"][d] > 0]
+                if vals:
+                    dim_scores[d] = sum(vals) / len(vals)
+        else:
+            dim_scores = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+        # Compute lowest dimension score (for map urgency)
+        lowest_dim_score = min(dim_scores) if any(dim_scores) else 0.0
+
+        sdo_list.append({
+            "id": sdo_name,
+            "name": sdo_name,
+            "capital": "",                       # not available, set empty
+            "lat": lat,
+            "lng": lng,
+            "dimension_scores": dim_scores,
+            "lowest_dim_score": lowest_dim_score   # <-- NEW: required for map
+        })
+
+    # Debug: print first few schools and SDOs (visible in logs)
+    print(f"[DEBUG] Processed {len(schools)} schools, {len(sdo_list)} divisions.")
+    if schools:
+        print(f"[DEBUG] Sample school: {schools[0]}")
+    if sdo_list:
+        print(f"[DEBUG] Sample SDO: {sdo_list[0]}")
+
+    return sdo_list, schools    
     # Compute dimension scores per school
     dim_avg_df = df_assessment.groupby(["School ID", "Dimension"])["Score"].mean().reset_index()
     dim_map = {name: i for i, name in enumerate(DIMENSION_NAMES)}
