@@ -1,6 +1,5 @@
 """Main Streamlit application for SBM Dashboard – Region X."""
 
-from utils.export_helpers import generate_excel_report, generate_pdf_report
 import streamlit as st
 import random
 import pandas as pd
@@ -28,6 +27,7 @@ from utils.auth import (
     get_accessible_divisions_summary, is_school_head
 )
 from utils.download_helpers import generate_report_data, generate_excel_template
+from utils.export_helpers import generate_excel_report, generate_pdf_report
 from utils.synopsis_generator import generate_synopsis
 from utils.twin_ui import render_sandbox
 
@@ -140,7 +140,7 @@ else:
     regional_overall_avg = 0
 
 # ────────────────────────────────────────────────────────────────
-# 3. AUTHENTICATION
+# 3. AUTHENTICATION (ROLE‑BASED LOGIN)
 # ────────────────────────────────────────────────────────────────
 auth_status = login_status()
 if not auth_status["logged_in"]:
@@ -149,68 +149,67 @@ if not auth_status["logged_in"]:
         <h1>🎓 SBM Digital Twin Dashboard</h1>
         <p style="color:#6b7280;font-size:18px;">DepEd Region X – Northern Mindanao</p>
         <div style="margin-top:40px;max-width:450px;margin-left:auto;margin-right:auto;">
-        <div style="background:#f8f9fa;padding:30px;border-radius:10px;border:1px solid #e5e7eb;">
-            <h3 style="margin-top:0;">🔐 Sign In</h3>
-            <p style="font-size:14px;color:#4b5563;">Select your role to see demo credentials.</p>
+            <div style="background:#f8f9fa;padding:30px;border-radius:10px;border:1px solid #e5e7eb;">
+                <h3 style="margin-top:0;">🔐 Sign In</h3>
+                <p style="font-size:14px;color:#4b5563;">Select your role to see demo credentials.</p>
     """, unsafe_allow_html=True)
 
-# ── Role selector ──
-login_role = st.selectbox(
-    "I am a…",
-    options=["Regional", "Division", "School Head"],
-    index=None,
-    placeholder="Choose your role",
-    key="login_role"
-)
-
-# ── Display credentials based on selected role ──
-if login_role == "Regional":
-    st.info("👤 Demo Account\n\nUsername: `regional`\nPassword: `regional123`")
-elif login_role == "Division":
-    st.info(
-        "👥 Demo Division Accounts (password: `sdo123`)\n\n"
-        "• `sdo_bukidnon`\n"
-        "• `sdo_cdo`\n"
-        "• `sdo_misamis_occ`\n"
-        "• `sdo_iligan`\n"
-        "• `sdo_valencia`"
-    )
-elif login_role == "School Head":
-    st.info(
-        "🏫 Demo School Head Accounts (password: `school123`)\n\n"
-        "• `principal_cdo`\n"
-        "• `principal_bukidnon`\n"
-        "• `principal_ozamiz`\n"
-        "• `principal_iligan`\n"
-        "• `principal_valencia`\n"
-        "• `principal_misamis_occ`"
+    # Role selector (outside the form)
+    login_role = st.selectbox(
+        "I am a…",
+        options=["Regional", "Division", "School Head"],
+        index=None,
+        placeholder="Choose your role",
+        key="login_role"
     )
 
-# ── Login form (always visible) ──
-with st.form("login_form"):
-    username = st.text_input("Username", placeholder="Enter your username")
-    password = st.text_input("Password", type="password", placeholder="Enter your password")
-    submitted = st.form_submit_button("🔑 Sign In", use_container_width=True)
-    if submitted:
-        if username and password:
-            user = authenticate(username, password)
-            if user:
-                st.session_state.user = user
-                st.rerun()
+    # Show credentials based on role
+    if login_role == "Regional":
+        st.info("👤 Demo Account\n\nUsername: `regional`\nPassword: `regional123`")
+    elif login_role == "Division":
+        st.info(
+            "👥 Demo Division Accounts (password: `sdo123`)\n\n"
+            "• `sdo_bukidnon`\n"
+            "• `sdo_cdo`\n"
+            "• `sdo_misamis_occ`\n"
+            "• `sdo_iligan`\n"
+            "• `sdo_valencia`"
+        )
+    elif login_role == "School Head":
+        st.info(
+            "🏫 Demo School Head Accounts (password: `school123`)\n\n"
+            "• `principal_cdo`\n"
+            "• `principal_bukidnon`\n"
+            "• `principal_ozamiz`\n"
+            "• `principal_iligan`\n"
+            "• `principal_valencia`\n"
+            "• `principal_misamis_occ`"
+        )
+
+    with st.form("login_form"):
+        username = st.text_input("Username", placeholder="Enter your username")
+        password = st.text_input("Password", type="password", placeholder="Enter your password")
+        submitted = st.form_submit_button("🔑 Sign In", use_container_width=True)
+        if submitted:
+            if username and password:
+                user = authenticate(username, password)
+                if user:
+                    st.session_state.user = user
+                    st.rerun()
+                else:
+                    st.error("❌ Invalid username or password.")
             else:
-                st.error("❌ Invalid username or password.")
-        else:
-            st.warning("Please enter both username and password.")
+                st.warning("Please enter both username and password.")
 
-st.markdown("""
+    st.markdown("""
+            </div>
         </div>
+        <p style="color:#9ca3af;font-size:12px;margin-top:20px;">
+            For demonstration purposes only. Real authentication will be implemented post-pilot.
+        </p>
     </div>
-    <p style="color:#9ca3af;font-size:12px;margin-top:20px;">
-        For demonstration purposes only. Real authentication will be implemented post-pilot.
-    </p>
-</div>
-""", unsafe_allow_html=True)
-st.stop()
+    """, unsafe_allow_html=True)
+    st.stop()
 
 user = st.session_state.user
 if user is None:
@@ -356,19 +355,30 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 📊 Data Management")
     if selected_sdo and selected_sdo_id is not None and schools_in_sdo:
-        report_df = generate_report_data(selected_sdo["name"], schools_in_sdo, complete_schools)
-        if report_df is not None and not report_df.empty:
-            csv_report = report_df.to_csv(index=False)
-            st.download_button(
-                label="📥 Download Report (CSV)",
-                data=csv_report,
-                file_name=f"SBM_Report_{selected_sdo['name'].replace(' ', '_')}.csv",
-                mime="text/csv",
-                use_container_width=True,
-                key="download_report"
-            )
-        else:
-            st.caption("No data to report.")
+        # Excel export
+        excel_data = generate_excel_report(
+            selected_sdo["name"], schools_in_sdo, complete_schools, dim_avgs, regional_dim_avgs
+        )
+        st.download_button(
+            label="📥 Download Excel Report",
+            data=excel_data,
+            file_name=f"SBM_Report_{selected_sdo['name'].replace(' ', '_')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+            key="download_excel"
+        )
+        # PDF export
+        pdf_data = generate_pdf_report(
+            selected_sdo["name"], schools_in_sdo, complete_schools, dim_avgs, regional_dim_avgs, overall_avg
+        )
+        st.download_button(
+            label="📄 Download PDF Report",
+            data=pdf_data,
+            file_name=f"SBM_Report_{selected_sdo['name'].replace(' ', '_')}.pdf",
+            mime="application/pdf",
+            use_container_width=True,
+            key="download_pdf"
+        )
     else:
         st.caption("No data loaded.")
 
@@ -634,7 +644,6 @@ def render_map(selected_sdo, filtered_sdos, schools_in_sdo, selected_dimension="
         st.warning("📍 Map unavailable – no geographic coordinates (Latitude/Longitude) provided for this division.")
         return
 
-    # Determine dimension index
     if selected_dimension == "Overall" or selected_dimension not in DIMENSION_NAMES:
         dim_index = None
     else:
