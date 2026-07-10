@@ -7,10 +7,11 @@ import plotly.graph_objects as go
 from .constants import DIMENSION_NAMES
 from .chart_helpers import create_radar_chart, create_indicators_table
 
+
 def generate_excel_report(division_name, schools_in_sdo, complete_schools, dim_avgs, regional_dim_avgs):
     """Create an Excel file with multiple sheets."""
     output = io.BytesIO()
-    
+
     # ── Sheet 1: Division Summary ──
     overall_avg = round(sum(s.get("overall_index", 0) for s in complete_schools) / len(complete_schools), 1) if complete_schools else 0.0
     summary_data = {
@@ -18,16 +19,16 @@ def generate_excel_report(division_name, schools_in_sdo, complete_schools, dim_a
         "Value": [division_name, len(schools_in_sdo), len(complete_schools), f"{overall_avg:.1f}"]
     }
     df_summary = pd.DataFrame(summary_data)
-    
+
     # Dimension averages
     dim_data = {"Dimension": DIMENSION_NAMES, "Division Average": dim_avgs, "Regional Average": regional_dim_avgs}
     df_dims = pd.DataFrame(dim_data)
-    
+
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df_summary.to_excel(writer, sheet_name="Division Summary", index=False)
         df_dims.to_excel(writer, sheet_name="Dimension Averages", index=False)
-        
-        # ── Sheet 2: School List (same as dashboard table) ──
+
+        # ── Sheet 2: School List ──
         rows = []
         for school in schools_in_sdo:
             dim_scores = school.get("dimension_scores", [0]*6)
@@ -49,54 +50,68 @@ def generate_excel_report(division_name, schools_in_sdo, complete_schools, dim_a
             })
         df_schools = pd.DataFrame(rows)
         df_schools.to_excel(writer, sheet_name="School List", index=False)
-        
-        # ── Sheet 3: Indicators (same as indicators table) ──
+
+        # ── Sheet 3: Indicators ──
         df_indicators = create_indicators_table(schools_in_sdo)
         if not df_indicators.empty:
             df_indicators.to_excel(writer, sheet_name="Indicators", index=False)
-    
+
     output.seek(0)
     return output
 
+
 def generate_pdf_report(division_name, schools_in_sdo, complete_schools, dim_avgs, regional_dim_avgs, overall_avg):
-    """Create a PDF report with key metrics and a radar chart."""
+    """Create a PDF report with key metrics and a radar chart (Unicode safe)."""
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Helvetica", "B", 16)
+
+    # Use DejaVu font for full Unicode support
+    pdf.add_font("DejaVu", "", "DejaVuSans.ttf", uni=True)
+    pdf.set_font("DejaVu", size=14)
+
+    # Title
     pdf.cell(0, 10, f"SBM Dashboard Report – {division_name}", ln=True, align="C")
-    pdf.ln(10)
-    
+    pdf.ln(8)
+
     # Metrics
-    pdf.set_font("Helvetica", size=12)
-    pdf.cell(0, 8, f"Total Schools: {len(schools_in_sdo)}", ln=True)
-    pdf.cell(0, 8, f"Complete Data: {len(complete_schools)}", ln=True)
-    pdf.cell(0, 8, f"Overall SBM Index: {overall_avg:.1f} / 3.0", ln=True)
+    pdf.set_font("DejaVu", size=11)
+    pdf.cell(0, 7, f"Total Schools: {len(schools_in_sdo)}", ln=True)
+    pdf.cell(0, 7, f"Complete Data: {len(complete_schools)}", ln=True)
+    pdf.cell(0, 7, f"Overall SBM Index: {overall_avg:.1f} / 3.0", ln=True)
     pdf.ln(5)
-    
+
     # Dimension averages table
-    pdf.set_font("Helvetica", "B", 12)
-    pdf.cell(0, 8, "Dimension Averages", ln=True)
-    pdf.set_font("Helvetica", size=10)
-    col_width = 60
-    pdf.cell(col_width, 6, "Dimension", border=1)
-    pdf.cell(40, 6, "Division", border=1)
-    pdf.cell(40, 6, "Regional", border=1)
+    pdf.set_font("DejaVu", style="B", size=11)
+    pdf.cell(0, 7, "Dimension Averages", ln=True)
+    pdf.set_font("DejaVu", size=9)
+
+    col_widths = [65, 35, 35]
+    # Header
+    pdf.cell(col_widths[0], 6, "Dimension", border=1)
+    pdf.cell(col_widths[1], 6, "Division", border=1)
+    pdf.cell(col_widths[2], 6, "Regional", border=1)
     pdf.ln()
     for i, dim in enumerate(DIMENSION_NAMES):
-        pdf.cell(col_width, 6, dim, border=1)
-        pdf.cell(40, 6, f"{dim_avgs[i]:.1f}", border=1)
-        pdf.cell(40, 6, f"{regional_dim_avgs[i]:.1f}", border=1)
+        pdf.cell(col_widths[0], 6, dim, border=1)
+        pdf.cell(col_widths[1], 6, f"{dim_avgs[i]:.1f}", border=1)
+        pdf.cell(col_widths[2], 6, f"{regional_dim_avgs[i]:.1f}", border=1)
         pdf.ln()
-    
-    # Radar chart image
-    fig = create_radar_chart(dim_avgs, regional_dim_avgs)
-    img_bytes = fig.to_image(format="png", width=500, height=500)
-    # Save to a temporary file-like object
-    img_io = io.BytesIO(img_bytes)
-    pdf.ln(10)
-    pdf.image(img_io, x=10, w=180)
-    
-    # Output
+
+    pdf.ln(8)
+
+    # Radar chart image (optional – skips if kaleido not installed)
+    try:
+        fig = create_radar_chart(dim_avgs, regional_dim_avgs)
+        # Convert to PNG bytes (requires kaleido or plotly-orca)
+        img_bytes = fig.to_image(format="png", width=500, height=500)
+        img_io = io.BytesIO(img_bytes)
+        pdf.image(img_io, x=10, w=180)
+    except Exception:
+        # If image generation fails, just put a note
+        pdf.set_font("DejaVu", style="I", size=10)
+        pdf.cell(0, 7, "(Radar chart not available – requires additional system dependency)", ln=True)
+
+    # Output to BytesIO
     pdf_output = io.BytesIO()
     pdf.output(pdf_output)
     pdf_output.seek(0)
