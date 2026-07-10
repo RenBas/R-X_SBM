@@ -1,17 +1,18 @@
 """Chart creation utilities for Streamlit."""
 
-import plotly.graph_objects as go
+import streamlit as st
 import pandas as pd
+import plotly.graph_objects as go
 from .constants import DIMENSION_NAMES
 
 def create_radar_chart(division_avgs, regional_avgs):
     """
     Create a Plotly radar chart comparing division vs regional averages.
-    Increased size and added hover tooltips showing both values.
+    Axis labels are now dark for better visibility.
     """
     fig = go.Figure()
     
-    # ── Division trace (with hover showing both) ──
+    # Division trace
     fig.add_trace(go.Scatterpolar(
         r=division_avgs,
         theta=DIMENSION_NAMES,
@@ -21,10 +22,10 @@ def create_radar_chart(division_avgs, regional_avgs):
         fillcolor='rgba(0, 51, 160, 0.25)',
         marker=dict(color='#0033a0', size=8),
         hovertemplate='<b>%{theta}</b><br>Division: %{r:.1f}<br>Region X: %{customdata:.1f}<extra></extra>',
-        customdata=regional_avgs  # Pass regional values to show in division hover
+        customdata=regional_avgs
     ))
     
-    # ── Regional trace (with hover showing both) ──
+    # Regional trace
     fig.add_trace(go.Scatterpolar(
         r=regional_avgs,
         theta=DIMENSION_NAMES,
@@ -35,7 +36,7 @@ def create_radar_chart(division_avgs, regional_avgs):
         fillcolor='rgba(206, 17, 38, 0.10)',
         marker=dict(color='#ce1126', size=7),
         hovertemplate='<b>%{theta}</b><br>Region X: %{r:.1f}<br>Division: %{customdata:.1f}<extra></extra>',
-        customdata=division_avgs  # Pass division values to show in regional hover
+        customdata=division_avgs
     ))
     
     fig.update_layout(
@@ -44,10 +45,10 @@ def create_radar_chart(division_avgs, regional_avgs):
                 visible=True,
                 range=[0, 3],
                 tickvals=[0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0],
-                tickfont=dict(size=11)
+                tickfont=dict(size=11, color='#333333')   # ← dark axis labels
             ),
             angularaxis=dict(
-                tickfont=dict(size=13)
+                tickfont=dict(size=13, color='#1a1a2e')
             )
         ),
         legend=dict(
@@ -63,18 +64,15 @@ def create_radar_chart(division_avgs, regional_avgs):
         width=700,
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
-        hovermode='closest'  # Ensures hover works on both traces independently
+        hovermode='closest'
     )
-    
     return fig
 
 
 def create_trend_chart(years, values):
     """Create a bar chart showing historical trend."""
     fig = go.Figure()
-    
     colors = ['#0033a0' if i == 0 else '#93a3c7' for i in range(len(years))]
-    
     fig.add_trace(go.Bar(
         x=years,
         y=values,
@@ -84,7 +82,6 @@ def create_trend_chart(years, values):
         textfont=dict(size=11, color='#1a1a2e'),
         hovertemplate='%{x}: %{y:.1f}<extra></extra>'
     ))
-    
     fig.update_layout(
         yaxis=dict(
             title='SBM Index',
@@ -92,24 +89,19 @@ def create_trend_chart(years, values):
             tickvals=[0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0],
             tickfont=dict(size=10)
         ),
-        xaxis=dict(
-            tickfont=dict(size=11)
-        ),
+        xaxis=dict(tickfont=dict(size=11)),
         margin=dict(l=50, r=20, t=10, b=30),
         height=180,
         showlegend=False,
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)'
     )
-    
     return fig
 
 
 def create_indicators_table(schools):
     """
     Create a DataFrame of indicator averages for the selected division.
-    For the prototype, we use sample indicators (14 of the 42).
-    In production, this will map to all 42 indicators from the DO.
     """
     sample_indicators = [
         {"id": 1, "desc": "Grade 3 proficiency – early literacy", "dim": 0},
@@ -127,17 +119,13 @@ def create_indicators_table(schools):
         {"id": 36, "desc": "Inspects infrastructure & facilities", "dim": 5},
         {"id": 41, "desc": "75–100% MOOE utilization", "dim": 5},
     ]
-    
     complete_schools = [s for s in schools if s["data_status"] != "Pending"]
     if not complete_schools:
         return pd.DataFrame()
-    
-    # Compute averages
     data = []
     for ind in sample_indicators:
         dim_idx = ind["dim"]
         avg_score = round(sum(s["dimension_scores"][dim_idx] for s in complete_schools) / len(complete_schools), 1)
-        
         if avg_score >= 2.5:
             status = "Always"
             color = "#22c55e"
@@ -150,7 +138,6 @@ def create_indicators_table(schools):
         else:
             status = "Not Yet"
             color = "#9ca3af"
-        
         data.append({
             "#": ind["id"],
             "Indicator": ind["desc"],
@@ -159,13 +146,8 @@ def create_indicators_table(schools):
             "Status": status,
             "Color": color
         })
-    
     return pd.DataFrame(data)
 
-
-import streamlit as st
-import pandas as pd
-from .constants import DIMENSION_NAMES
 
 def render_school_dashboard(schools_in_sdo):
     """
@@ -176,12 +158,10 @@ def render_school_dashboard(schools_in_sdo):
         st.info("No school data available for this division.")
         return
 
-    # --- Summary metrics ---
     total = len(schools_in_sdo)
     complete = [s for s in schools_in_sdo if s.get("data_status") != "Pending"]
     overall_avg = sum(s.get("overall_index", 0) for s in complete) / len(complete) if complete else 0.0
 
-    # Count schools by SBM level (based on overall_index)
     levels = {"Always Manifested": 0, "Frequently Manifested": 0, "Rarely Manifested": 0, "Not Yet Manifested": 0}
     for s in complete:
         score = s.get("overall_index", 0)
@@ -206,15 +186,12 @@ def render_school_dashboard(schools_in_sdo):
     with col5:
         st.metric("🟠 Rarely Manifested", levels["Rarely Manifested"])
 
-    # --- Data table ---
     st.markdown("### 📋 School‑Level Data")
 
-    # Build a DataFrame for display
     rows = []
     for school in schools_in_sdo:
         dim_scores = school.get("dimension_scores", [0]*6)
         overall = school.get("overall_index", 0)
-        # Determine SBM level string
         if school.get("data_status") == "Pending":
             sbm_level = "Pending"
         elif overall >= 2.5:
@@ -246,7 +223,6 @@ def render_school_dashboard(schools_in_sdo):
 
     df = pd.DataFrame(rows)
 
-    # Colour the dimension and overall columns using background gradients
     def color_dim(val):
         if pd.isna(val): return ''
         if val >= 2.5: return 'background-color: #22c55e; color: white'
@@ -254,11 +230,9 @@ def render_school_dashboard(schools_in_sdo):
         elif val >= 1.0: return 'background-color: #f97316; color: white'
         else: return 'background-color: #dc2626; color: white'
 
-    # Apply to dimension columns (3rd to 8th) and Overall column (index 3)
     dim_cols = df.columns[3:9]  # Overall, CT, LE, LD, GA, HR, FR
     styled_df = df.style.map(color_dim, subset=dim_cols).format("{:.1f}", subset=dim_cols)
 
-    # Search box (using Streamlit's dataframe search is built-in if we use st.dataframe with column_config)
     st.dataframe(
         styled_df,
         column_config={
@@ -275,7 +249,6 @@ def render_school_dashboard(schools_in_sdo):
         height=500
     )
 
-    # Optional: Download button
     csv = df.to_csv(index=False)
     st.download_button(
         label="📥 Download School Data (CSV)",
