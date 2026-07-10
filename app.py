@@ -9,7 +9,6 @@ import folium
 from streamlit_folium import st_folium
 from streamlit.components.v1 import html as st_html
 import uuid
-import redis
 
 # ─── PAGE CONFIG ───
 st.set_page_config(
@@ -149,11 +148,12 @@ else:
     regional_overall_avg = 0
 
 # ────────────────────────────────────────────────────────────────
-# 3. LIVE USER COUNTER (Upstash Redis)
+# 3. LIVE USER COUNTER (Upstash Redis) – import only when needed
 # ────────────────────────────────────────────────────────────────
 def get_redis_connection():
     """Return a Redis connection if secrets are configured, else None."""
     try:
+        import redis   # local import – avoids crash if not installed yet
         return redis.Redis(
             host=st.secrets["redis"]["host"],
             port=st.secrets["redis"]["port"],
@@ -170,8 +170,7 @@ def update_active_users():
     if r is None:
         return None
     key = f"session:{st.session_state.session_id}"
-    r.setex(key, 300, "1")  # 5-minute TTL
-    # Count all active session keys
+    r.setex(key, 300, "1")  # 5‑minute TTL
     return len(r.keys("session:*"))
 
 # ────────────────────────────────────────────────────────────────
@@ -325,7 +324,7 @@ with st.sidebar:
     if active_count is not None:
         st.caption(f"👥 Active viewers: {active_count}")
     else:
-        st.caption("👥 Active viewers: N/A")
+        st.caption("👥 Active viewers: N/A (Redis not configured)")
 
     st.markdown(f"### 👤 {user_name}")
     st.caption(get_accessible_divisions_summary(user))
