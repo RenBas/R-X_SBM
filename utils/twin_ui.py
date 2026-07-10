@@ -114,15 +114,25 @@ def render_sandbox(sdo_list, selected_sdo, schools_in_sdo, complete_schools, dim
             disabled=(len(valid_schools) == 0)
         )
     
+    # ─── Placeholder for simulation results (clears previous run) ───
+    results_placeholder = st.empty()
+
     # ─── Simulation Results ───
     if run_simulation:
         if not valid_schools:
             st.warning("No valid schools with data found. Please check your data.")
             return
         
-        st.markdown("---")
-        st.markdown("### 📈 Simulation Results")
-        
+        # Clear previous output and show new
+        with results_placeholder.container():
+            st.markdown("---")
+            st.markdown("### 📈 Simulation Results")
+            
+            results = generate_dummy_results(valid_schools, time_horizon, ta_visits, training_days, budget_increase)
+            display_simulation_results(results, time_horizon)
+    else:
+        # Clear any leftover results when button not clicked
+        results_placeholder.empty()        
         # ── Generate dummy results instantly ──
         results = generate_dummy_results(valid_schools, time_horizon, ta_visits, training_days, budget_increase)
         
