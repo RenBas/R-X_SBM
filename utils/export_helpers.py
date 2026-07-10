@@ -12,7 +12,7 @@ def generate_excel_report(division_name, schools_in_sdo, complete_schools, dim_a
     """Create an Excel file with multiple sheets."""
     output = io.BytesIO()
 
-    # ── Sheet 1: Division Summary ──
+    # Sheet 1: Division Summary
     overall_avg = round(sum(s.get("overall_index", 0) for s in complete_schools) / len(complete_schools), 1) if complete_schools else 0.0
     summary_data = {
         "Metric": ["Division", "Total Schools", "Complete Schools", "Overall SBM Index"],
@@ -28,7 +28,7 @@ def generate_excel_report(division_name, schools_in_sdo, complete_schools, dim_a
         df_summary.to_excel(writer, sheet_name="Division Summary", index=False)
         df_dims.to_excel(writer, sheet_name="Dimension Averages", index=False)
 
-        # ── Sheet 2: School List ──
+        # Sheet 2: School List
         rows = []
         for school in schools_in_sdo:
             dim_scores = school.get("dimension_scores", [0]*6)
@@ -51,7 +51,7 @@ def generate_excel_report(division_name, schools_in_sdo, complete_schools, dim_a
         df_schools = pd.DataFrame(rows)
         df_schools.to_excel(writer, sheet_name="School List", index=False)
 
-        # ── Sheet 3: Indicators ──
+        # Sheet 3: Indicators
         df_indicators = create_indicators_table(schools_in_sdo)
         if not df_indicators.empty:
             df_indicators.to_excel(writer, sheet_name="Indicators", index=False)
@@ -61,29 +61,27 @@ def generate_excel_report(division_name, schools_in_sdo, complete_schools, dim_a
 
 
 def generate_pdf_report(division_name, schools_in_sdo, complete_schools, dim_avgs, regional_dim_avgs, overall_avg):
-    """Create a PDF report with key metrics and a radar chart (Unicode safe)."""
+    """Create a PDF report with key metrics and a radar chart (uses built-in Helvetica, ASCII only)."""
     pdf = FPDF()
     pdf.add_page()
+    pdf.set_font("Helvetica", "B", 16)
 
-    # Use DejaVu font for full Unicode support
-    pdf.add_font("DejaVu", "", "DejaVuSans.ttf", uni=True)
-    pdf.set_font("DejaVu", size=14)
-
-    # Title
-    pdf.cell(0, 10, f"SBM Dashboard Report – {division_name}", ln=True, align="C")
+    # Title (use plain hyphen to avoid Unicode)
+    title = f"SBM Dashboard Report - {division_name}"
+    pdf.cell(0, 10, title, ln=True, align="C")
     pdf.ln(8)
 
     # Metrics
-    pdf.set_font("DejaVu", size=11)
+    pdf.set_font("Helvetica", size=11)
     pdf.cell(0, 7, f"Total Schools: {len(schools_in_sdo)}", ln=True)
     pdf.cell(0, 7, f"Complete Data: {len(complete_schools)}", ln=True)
     pdf.cell(0, 7, f"Overall SBM Index: {overall_avg:.1f} / 3.0", ln=True)
     pdf.ln(5)
 
     # Dimension averages table
-    pdf.set_font("DejaVu", style="B", size=11)
+    pdf.set_font("Helvetica", "B", 11)
     pdf.cell(0, 7, "Dimension Averages", ln=True)
-    pdf.set_font("DejaVu", size=9)
+    pdf.set_font("Helvetica", size=9)
 
     col_widths = [65, 35, 35]
     # Header
@@ -99,17 +97,15 @@ def generate_pdf_report(division_name, schools_in_sdo, complete_schools, dim_avg
 
     pdf.ln(8)
 
-    # Radar chart image (optional – skips if kaleido not installed)
+    # Radar chart image (skip if kaleido is missing)
     try:
         fig = create_radar_chart(dim_avgs, regional_dim_avgs)
-        # Convert to PNG bytes (requires kaleido or plotly-orca)
         img_bytes = fig.to_image(format="png", width=500, height=500)
         img_io = io.BytesIO(img_bytes)
         pdf.image(img_io, x=10, w=180)
     except Exception:
-        # If image generation fails, just put a note
-        pdf.set_font("DejaVu", style="I", size=10)
-        pdf.cell(0, 7, "(Radar chart not available – requires additional system dependency)", ln=True)
+        pdf.set_font("Helvetica", "I", 10)
+        pdf.cell(0, 7, "(Radar chart not available - requires additional system dependency)", ln=True)
 
     # Output to BytesIO
     pdf_output = io.BytesIO()
