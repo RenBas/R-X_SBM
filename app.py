@@ -873,4 +873,4 @@ if search_query and schools:
         st.info("No schools found matching your search.")
 
 st.markdown("---")
-st.caption("© 2024 DepEd Region X – SBM Digital Twin Dashboard · Built with Streamlit")
+st.caption("© 2026 DepEd Region X – SBM Digital Twin Dashboard · Built with Streamlit")
