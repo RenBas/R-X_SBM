@@ -20,7 +20,7 @@ st.set_page_config(
 # ─── IMPORTS ───
 from utils.constants import DIMENSION_NAMES
 from utils.data_loader import load_sdo_data, load_all_schools, get_schools_by_sdo, compute_dimension_averages
-from utils.map_helpers import add_sdo_shield, add_school_dot
+from utils.map_helpers import add_sdo_shield, add_school_dot, score_to_color
 from utils.chart_helpers import create_radar_chart, create_trend_chart, create_indicators_table, render_school_dashboard
 from utils.auth import (
     authenticate, login_status, logout, get_accessible_schools,
@@ -224,51 +224,45 @@ filtered_sdos = filtered_data.get("filtered_sdos", [])
 filtered_schools = filtered_data.get("filtered_schools", [])
 
 # ────────────────────────────────────────────────────────────────
-# 4. SELECTED SDO
+# 4. SELECTED SDO (only used for regional/division roles)
 # ────────────────────────────────────────────────────────────────
 selected_sdo = None
 selected_sdo_id = None
 
-if "go_to_division" in st.session_state:
-    target_div_name = st.session_state.go_to_division
-    for sdo in sdo_list:
-        if sdo["name"] == target_div_name:
-            selected_sdo = sdo
-            selected_sdo_id = sdo["id"]
-            break
-    del st.session_state.go_to_division
+if role != "school":
+    if "go_to_division" in st.session_state:
+        target_div_name = st.session_state.go_to_division
+        for sdo in sdo_list:
+            if sdo["name"] == target_div_name:
+                selected_sdo = sdo
+                selected_sdo_id = sdo["id"]
+                break
+        del st.session_state.go_to_division
 
-if selected_sdo is None and sdo_list:
-    if is_school_head(user):
-        if filtered_schools:
-            school = filtered_schools[0]
-            selected_sdo = next((s for s in sdo_list if s["id"] == school.get("sdo_id")), None)
-            selected_sdo_id = selected_sdo["id"] if selected_sdo else None
-        else:
-            selected_sdo = sdo_list[0] if sdo_list else None
-            selected_sdo_id = selected_sdo["id"] if selected_sdo else None
-    else:
+    if selected_sdo is None and sdo_list:
         if filtered_sdos:
-            if len(filtered_sdos) == 1:
-                selected_sdo = filtered_sdos[0]
-                selected_sdo_id = selected_sdo["id"]
-            else:
-                selected_sdo = filtered_sdos[0]
-                selected_sdo_id = selected_sdo["id"]
+            selected_sdo = filtered_sdos[0]
+            selected_sdo_id = selected_sdo["id"]
         else:
             selected_sdo = sdo_list[0] if sdo_list else None
             selected_sdo_id = selected_sdo["id"] if selected_sdo else None
 
-if selected_sdo is not None:
-    if "capital" not in selected_sdo or pd.isna(selected_sdo.get("capital")):
-        selected_sdo["capital"] = ""
-    if "name" in selected_sdo:
-        selected_sdo["name"] = str(selected_sdo["name"])
+    if selected_sdo is not None:
+        if "capital" not in selected_sdo or pd.isna(selected_sdo.get("capital")):
+            selected_sdo["capital"] = ""
+        if "name" in selected_sdo:
+            selected_sdo["name"] = str(selected_sdo["name"])
 
-if selected_sdo_id is not None:
-    schools_in_sdo = get_schools_by_sdo(filtered_schools, selected_sdo_id) if filtered_schools else []
+    if selected_sdo_id is not None:
+        schools_in_sdo = get_schools_by_sdo(filtered_schools, selected_sdo_id) if filtered_schools else []
+    else:
+        schools_in_sdo = []
 else:
-    schools_in_sdo = []
+    # School head: use filtered_schools directly (should contain exactly one school)
+    schools_in_sdo = filtered_schools
+    if schools_in_sdo:
+        selected_sdo_id = schools_in_sdo[0].get("sdo_id")
+        selected_sdo = next((s for s in sdo_list if s["id"] == selected_sdo_id), None)
 
 complete_schools = [s for s in schools_in_sdo if s.get("data_status") != "Pending"]
 dim_avgs = compute_dimension_averages(schools_in_sdo)
@@ -317,8 +311,8 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("### 🗺️ Navigation")
-    if sdo_list and selected_sdo:
-        if not is_school_head(user):
+    if role != "school":
+        if sdo_list and selected_sdo:
             sdo_names = [s["name"] for s in filtered_sdos] if filtered_sdos else [s["name"] for s in sdo_list]
             if len(sdo_names) == 1:
                 st.caption(f"📋 {selected_sdo['name']}")
@@ -338,11 +332,13 @@ with st.sidebar:
                     max_dim_idx = 0
                     min_dim_idx = 0
         else:
-            if filtered_schools:
-                school = filtered_schools[0]
-                st.caption(f"🏫 {school.get('name', '')}")
+            st.caption("📭 No data loaded – please upload.")
     else:
-        st.caption("📭 No data loaded – please upload.")
+        if filtered_schools:
+            school = filtered_schools[0]
+            st.caption(f"🏫 {school.get('name', '')}")
+        else:
+            st.caption("🏫 No school data found.")
 
     st.markdown("---")
     st.markdown("### 📐 Filter by Dimension")
@@ -354,7 +350,7 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("### 📊 Data Management")
-    if selected_sdo and selected_sdo_id is not None and schools_in_sdo:
+    if role != "school" and selected_sdo and selected_sdo_id is not None and schools_in_sdo:
         # Excel export
         excel_data = generate_excel_report(
             selected_sdo["name"], schools_in_sdo, complete_schools, dim_avgs, regional_dim_avgs
@@ -378,6 +374,19 @@ with st.sidebar:
             mime="application/pdf",
             use_container_width=True,
             key="download_pdf"
+        )
+    elif role == "school" and filtered_schools:
+        school = filtered_schools[0]
+        # For school heads, provide a simple CSV of their school data
+        school_df = pd.DataFrame([school])
+        csv_data = school_df.to_csv(index=False)
+        st.download_button(
+            label="📥 Download School Data (CSV)",
+            data=csv_data,
+            file_name=f"{school.get('name', 'school').replace(' ', '_')}_data.csv",
+            mime="text/csv",
+            use_container_width=True,
+            key="download_school_csv"
         )
     else:
         st.caption("No data loaded.")
@@ -625,21 +634,13 @@ if not sdo_list or not schools:
     st.info("💡 Please check that the uploaded file has data rows and that the 'Division' column is populated.")
     st.stop()
 
-if selected_sdo_id is None:
-    st.warning("No division selected. Please select a division from the sidebar.")
-    st.stop()
-
-# ─── DIVISION HEADER ───
-st.markdown(f"## 🎓 SBM Dashboard: {selected_sdo['name']}")
-st.caption(f"Capital: {selected_sdo.get('capital', '')} · {selected_sdo.get('id', '')} schools")
-
 # ─── Helper to render map safely ───
 def render_map(selected_sdo, filtered_sdos, schools_in_sdo, selected_dimension="Overall"):
     """Render the map only if the SDO has valid coordinates.
     If a specific dimension is selected, school dots are coloured by that dimension's score.
     """
-    lat = selected_sdo.get("lat", 0)
-    lng = selected_sdo.get("lng", 0)
+    lat = selected_sdo.get("lat", 0) if selected_sdo else 0
+    lng = selected_sdo.get("lng", 0) if selected_sdo else 0
     if lat == 0.0 and lng == 0.0:
         st.warning("📍 Map unavailable – no geographic coordinates (Latitude/Longitude) provided for this division.")
         return
@@ -898,7 +899,95 @@ elif role == "division":
         render_sandbox(sdo_list, selected_sdo, schools_in_sdo, complete_schools, dim_avgs, overall_avg)
 
 else:
-    st.info("School head view – detailed dashboard coming soon.")
+    # ─── SCHOOL HEAD VIEW ───
+    if not filtered_schools:
+        st.warning("No school data found for your account. Please contact the administrator.")
+        st.stop()
+
+    school = filtered_schools[0]
+    div_name = selected_sdo["name"] if selected_sdo else "Unknown Division"
+
+    st.markdown(f"## 🏫 {school['name']}")
+
+    # Conditional enrollment display – only show if > 1 (real data)
+    enrollment_display = ""
+    if school.get("enrollment", 0) > 1:
+        enrollment_display = f" · {school['enrollment']:,} learners"
+    st.caption(f"{school.get('type', 'N/A')} · {div_name}{enrollment_display}")
+
+    # ── Overview metrics ──
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        overall = school.get("overall_index", 0)
+        st.metric("📊 Overall SBM Index", f"{overall:.1f} / 3.0")
+    with col2:
+        if overall >= 2.5:
+            level = "Always Manifested"
+        elif overall >= 2.0:
+            level = "Frequently Manifested"
+        elif overall >= 1.0:
+            level = "Rarely Manifested"
+        else:
+            level = "Not Yet Manifested"
+        st.metric("🎯 SBM Level", level)
+    with col3:
+        lowest_idx = school.get("lowest_dim_index", 0)
+        lowest_name = DIMENSION_NAMES[lowest_idx] if 0 <= lowest_idx < 6 else "?"
+        lowest_score = school.get("lowest_dim_score", 0)
+        st.metric("⬇️ Lowest Dimension", f"{lowest_name} ({lowest_score:.1f})")
+    with col4:
+        highest_idx = school["dimension_scores"].index(max(school["dimension_scores"]))
+        highest_name = DIMENSION_NAMES[highest_idx]
+        highest_score = school["dimension_scores"][highest_idx]
+        st.metric("⬆️ Highest Dimension", f"{highest_name} ({highest_score:.1f})")
+
+    # ── Dimension bar chart ──
+    st.markdown("### 📊 Dimension Scores")
+    dim_scores = school.get("dimension_scores", [0]*6)
+    dim_colors = [score_to_color(s) for s in dim_scores]
+
+    fig = go.Figure(data=[
+        go.Bar(
+            x=DIMENSION_NAMES,
+            y=dim_scores,
+            marker_color=dim_colors,
+            text=[f"{s:.1f}" for s in dim_scores],
+            textposition='auto',
+            hovertemplate='%{x}: %{y:.1f}<extra></extra>'
+        )
+    ])
+    fig.update_layout(
+        yaxis=dict(range=[0, 3], title='Score'),
+        height=350,
+        margin=dict(l=20, r=20, t=10, b=20),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)'
+    )
+    st.plotly_chart(fig, width='stretch', key="school_dim_bar")
+
+    # ── Indicators table ──
+    st.markdown("### 📋 SBM Indicators")
+    df_ind = create_indicators_table([school])
+    if not df_ind.empty:
+        st.dataframe(
+            df_ind[["#", "Indicator", "Dimension", "Score", "Status"]],
+            column_config={"Score": st.column_config.NumberColumn(format="%.1f")},
+            hide_index=True,
+            width='stretch'
+        )
+    else:
+        st.info("No indicator data available.")
+
+    # ── Map with school location ──
+    st.markdown("### 📍 School Location")
+    lat = school.get("lat", 0)
+    lng = school.get("lng", 0)
+    if lat != 0 or lng != 0:
+        m = folium.Map(location=[lat, lng], zoom_start=15, tiles="CartoDB positron")
+        add_school_dot(m, school)
+        st_folium(m, width=None, height=400, key="school_map")
+    else:
+        st.warning("📍 Map unavailable – no coordinates provided for this school.")
 
 # ─── SEARCH RESULTS ───
 if search_query and schools:
