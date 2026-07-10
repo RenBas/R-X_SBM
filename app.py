@@ -153,10 +153,12 @@ if not auth_status["logged_in"]:
                 <div style="text-align:left;font-size:13px;color:#4b5563;background:#f1f5f9;padding:12px;border-radius:6px;margin:12px 0;">
                     <b>Demo Credentials:</b><br>
                     <b>Regional:</b> regional / regional123<br>
-                    <b>Division:</b> sdo_bukidnon / sdo123<br>
-                    <b>School:</b> principal_cdo / school123<br>
+                    <b>Divisions (password: sdo123):</b><br>
+                    <span style="margin-left:10px;">sdo_bukidnon · sdo_cdo · sdo_misamis_occ · sdo_iligan · sdo_valencia</span><br>
+                    <b>School Heads (password: school123):</b><br>
+                    <span style="margin-left:10px;">principal_cdo · principal_bukidnon · principal_ozamiz · principal_iligan · principal_valencia · principal_misamis_occ</span><br>
                     <i style="font-size:12px;color:#6b7280;">(Copy username exactly as shown)</i>
-                </div>
+    </div>
     """, unsafe_allow_html=True)
     with st.form("login_form"):
         username = st.text_input("Username", placeholder="Enter your username")
