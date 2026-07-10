@@ -849,10 +849,10 @@ elif role == "division":
                 st.info("No historical data available for this division.")
 
     with tab2:
-        st.markdown("### 📊 School Performance Dashboard")
-        st.caption(f"Detailed school-level performance for {selected_sdo['name']}.")
-        st.info("School Performance Dashboard – full code to be inserted here.")
-
+        st.markdown(f"### 📊 School Performance Dashboard – {selected_sdo['name']}")
+        from utils.chart_helpers import render_school_dashboard
+        render_school_dashboard(schools_in_sdo)
+        
     with tab3:
         render_sandbox(sdo_list, selected_sdo, schools_in_sdo, complete_schools, dim_avgs, overall_avg)
 
