@@ -420,7 +420,7 @@ with st.sidebar:
         - 🔴 Red = Critical (< 1.0)
         - 🟠 Orange = Warning (1.0–1.9)
         - 🟡 Yellow = Monitor (2.0–2.4)
-        - ⚪ No glow = Stable (≥ 2.5)
+        - 🟢 Green = Stable (≥ 2.5) – no glow
         """)
 
     st.markdown("---")
@@ -455,7 +455,6 @@ def process_uploaded_excel(uploaded_file):
 
     debug["dimension_column_counts"] = {DIMENSION_NAMES[i]: len(dim_columns[i]) for i in range(6)}
 
-    # ── Helper functions ──
     def safe_float(val):
         v = pd.to_numeric(val, errors='coerce')
         return 0.0 if pd.isna(v) else float(v)
@@ -478,11 +477,10 @@ def process_uploaded_excel(uploaded_file):
                 vals = pd.to_numeric(row[cols], errors="coerce").dropna()
                 dimension_scores[dim_idx] = vals.mean() if not vals.empty else 0.0
 
-        # Ensure enrollment is at least 1 so dot is visible even if missing
         enrollment_raw = safe_int(row.get("Enrollment", 0))
         enrollment = enrollment_raw if enrollment_raw > 0 else 1
 
-        # ✅ Compute school's lowest dimension score and its index
+        # ✅ Compute lowest dimension score & index for each school
         lowest_school_dim_score = min(dimension_scores)
         lowest_school_dim_index = dimension_scores.index(lowest_school_dim_score)
 
@@ -501,8 +499,8 @@ def process_uploaded_excel(uploaded_file):
             "head_email": safe_str(row.get("School Head Email", "")),
             "dimension_scores": dimension_scores,
             "overall_index": sum(dimension_scores) / 6,
-            "lowest_dim_score": lowest_school_dim_score,        # needed by map popup
-            "lowest_dim_index": lowest_school_dim_index         # needed by map popup
+            "lowest_dim_score": lowest_school_dim_score,
+            "lowest_dim_index": lowest_school_dim_index
         }
         schools.append(school)
 
@@ -516,7 +514,7 @@ def process_uploaded_excel(uploaded_file):
     for sdo_name in sdo_names:
         div_schools = [s for s in schools if s["sdo_id"] == sdo_name]
 
-        # Pick first school with non-zero coordinates for SDO location
+        # Pick first school with non‑zero coordinates for SDO location
         lat, lng = 0.0, 0.0
         for s in div_schools:
             if s["lat"] != 0.0 or s["lng"] != 0.0:
@@ -536,7 +534,10 @@ def process_uploaded_excel(uploaded_file):
         lowest_dim_score = min(dim_scores) if any(dim_scores) else 0.0
         overall_index = round(sum(dim_scores) / 6, 1) if any(dim_scores) else 0.0
 
-        # Compute name of the dimension with the lowest score
+        # ✅ Urgency factor: 0 = perfect, 1 = worst
+        urgency_factor = round((3.0 - overall_index) / 3.0, 2)
+
+        # ✅ Name of lowest dimension
         lowest_dim_idx = dim_scores.index(min(dim_scores))
         lowest_dim_name = DIMENSION_NAMES[lowest_dim_idx]
 
@@ -549,7 +550,8 @@ def process_uploaded_excel(uploaded_file):
             "dimension_scores": dim_scores,
             "lowest_dim_score": lowest_dim_score,
             "lowest_dim_name": lowest_dim_name,
-            "overall_index": overall_index
+            "overall_index": overall_index,
+            "urgency_factor": urgency_factor
         })
 
     debug["sample_sdo_scores"] = sdo_list[0]["dimension_scores"] if sdo_list else None
@@ -642,17 +644,18 @@ if role == "regional":
         render_map(selected_sdo, filtered_sdos, schools_in_sdo)
 
         st.markdown("---")
+        # ✅ Updated legend with green colour
         st.markdown("""
         <div class="custom-footnote" style="padding:14px 18px;border-radius:8px;margin-bottom:14px;">
             <b>💡 About the Pulsing Glow:</b> The animated glow behind each SDO shield indicates <b>urgency based on the division's lowest SBM dimension score</b>.
             <br><br>
             <div style="display:flex;flex-wrap:wrap;gap:12px 24px;margin-top:4px;">
-                <span style="color:#dc2626;font-weight:600;">🔴 Red glow</span> <span>Critical – Score &lt; 1.0</span>
+                <span style="color:#dc2626;font-weight:600;">🔴 Red glow</span> <span>Critical – Score < 1.0</span>
                 <span style="color:#f97316;font-weight:600;">🟠 Orange glow</span> <span>Warning – Score 1.0 – 1.9</span>
                 <span style="color:#eab308;font-weight:600;">🟡 Yellow glow</span> <span>Monitor – Score 2.0 – 2.4</span>
-                <span style="font-weight:600;opacity:0.4;">⚪ No glow</span> <span>Stable – Score ≥ 2.5</span>
+                <span style="color:#22c55e;font-weight:600;">🟢 Green (shield only)</span> <span>Stable – Score ≥ 2.5</span>
             </div>
-            <div style="margin-top:8px;font-size:12px;opacity:0.6;">The glow pulses faster and brighter for more urgent divisions.</div>
+            <div style="margin-top:8px;font-size:12px;opacity:0.6;">The glow pulses faster and brighter for more urgent divisions. Divisions with scores ≥ 2.5 show no glow.</div>
         </div>
         """, unsafe_allow_html=True)
         st.markdown("""
@@ -791,14 +794,24 @@ elif role == "division":
         render_map(selected_sdo, filtered_sdos, schools_in_sdo)
 
         st.markdown("---")
+        # (Use the same updated legend as above)
         st.markdown("""
         <div class="custom-footnote" style="padding:14px 18px;border-radius:8px;margin-bottom:14px;">
-            <b>💡 About the Pulsing Glow:</b> ... (same as before)
+            <b>💡 About the Pulsing Glow:</b> The animated glow behind each SDO shield indicates <b>urgency based on the division's lowest SBM dimension score</b>.
+            <br><br>
+            <div style="display:flex;flex-wrap:wrap;gap:12px 24px;margin-top:4px;">
+                <span style="color:#dc2626;font-weight:600;">🔴 Red glow</span> <span>Critical – Score < 1.0</span>
+                <span style="color:#f97316;font-weight:600;">🟠 Orange glow</span> <span>Warning – Score 1.0 – 1.9</span>
+                <span style="color:#eab308;font-weight:600;">🟡 Yellow glow</span> <span>Monitor – Score 2.0 – 2.4</span>
+                <span style="color:#22c55e;font-weight:600;">🟢 Green (shield only)</span> <span>Stable – Score ≥ 2.5</span>
+            </div>
+            <div style="margin-top:8px;font-size:12px;opacity:0.6;">The glow pulses faster and brighter for more urgent divisions. Divisions with scores ≥ 2.5 show no glow.</div>
         </div>
         """, unsafe_allow_html=True)
         st.markdown("""
         <div style="background-color:var(--secondary-background-color);padding:10px 16px;border-radius:8px;border-left:4px solid #22c55e;margin-bottom:14px;color:var(--text-color);">
-            <b>📏 School Dot Sizes:</b> ... (same)
+            <b>📏 School Dot Sizes:</b> The size of each school dot represents its <b>total enrollment (number of learners)</b>.
+            Larger dots indicate schools with more students, while smaller dots indicate schools with fewer students.
         </div>
         """, unsafe_allow_html=True)
         st.caption("💡 Click on any SDO shield to zoom in and view its schools. Hover over markers for more details.")
